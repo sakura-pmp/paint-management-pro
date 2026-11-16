@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Management Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Firebase SDK (Compat for easy single-file initialization) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
+        .gold-glow { box-shadow: 0 0 25px rgba(212, 175, 55, 0.15); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d4af37; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8) sepia(1) saturate(3) hue-rotate(10deg);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row antialiased">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-20 md:bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Photo Zoom Modal -->
+    <div id="photo-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="relative max-w-3xl w-full bg-[#161f31] rounded-2xl border border-gray-800 p-4 shadow-2xl">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-amber-400 text-sm flex items-center gap-2"><i class="ph-bold ph-image"></i> 現場写真プレビュー</h3>
+                <button onclick="closePhotoModal(); return false;" class="text-gray-400 hover:text-white p-1.5 rounded-lg bg-gray-800/60 cursor-pointer"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <div class="flex justify-center items-center bg-[#0b0f19] rounded-xl overflow-hidden p-2 max-h-[75vh]">
+                <img id="modal-img-element" src="" alt="現場写真" class="max-h-[70vh] object-contain rounded-lg">
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar (Desktop) - 3 Tabs Only -->
+    <aside class="hidden md:flex flex-col w-64 bg-[#111827] border-r border-gray-800 p-6 shrink-0">
+        <div class="flex items-center gap-3 mb-8">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-gray-950 font-bold text-xl shadow-lg">
+                <i class="ph-bold ph-paint-brush"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-amber-400 tracking-wide leading-tight">Paint Management Pro</h1>
+                <p class="text-xs text-gray-400">塗装現場・在庫管理システム</p>
+            </div>
+        </div>
+
+        <nav class="space-y-2 flex-1">
+            <button onclick="switchTab('projects'); return false;" id="nav-projects" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-amber-500/10 text-amber-400 border border-amber-500/30 cursor-pointer">
+                <i class="ph-bold ph-note-pencil text-lg"></i> 案件登録
+            </button>
+            <button onclick="switchTab('materials'); return false;" id="nav-materials" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 cursor-pointer">
+                <i class="ph-bold ph-package text-lg"></i> 材料・在庫管理
+            </button>
+            <button onclick="switchTab('customers'); return false;" id="nav-customers" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 cursor-pointer">
+                <i class="ph-bold ph-users text-lg"></i> 顧客・施工管理
+            </button>
+        </nav>
+
+        <div class="pt-6 border-t border-gray-800 text-xs text-gray-500 space-y-1">
+            <div class="flex items-center justify-between">
+                <span>同期状態:</span>
+                <span id="sidebar-sync-badge" class="text-emerald-400 font-semibold">グループ同期中</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span>グループ:</span>
+                <span id="sidebar-group-label" class="text-amber-400 font-mono truncate max-w-[110px]">hachioji-paint</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Mobile Header -->
+    <header class="md:hidden flex items-center justify-between bg-[#111827] border-b border-gray-800 px-4 py-3 sticky top-0 z-40">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-gray-950 font-bold">
+                <i class="ph-bold ph-paint-brush"></i>
+            </div>
+            <span class="font-bold text-amber-400 text-sm">Paint Management Pro</span>
+        </div>
+        <span id="mobile-sync-badge" class="text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">
+            同期アクティブ
+        </span>
+    </header>
+
+    <!-- Mobile Bottom Nav - 3 Tabs Only -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-800 flex justify-around p-2 z-40">
+        <button onclick="switchTab('projects'); return false;" id="mob-nav-projects" class="flex-1 flex flex-col items-center gap-1 p-2 text-amber-400 text-xs font-medium cursor-pointer">
+            <i class="ph-bold ph-note-pencil text-xl"></i> 案件登録
+        </button>
+        <button onclick="switchTab('materials'); return false;" id="mob-nav-materials" class="flex-1 flex flex-col items-center gap-1 p-2 text-gray-400 text-xs font-medium cursor-pointer">
+            <i class="ph-bold ph-package text-xl"></i> 材料・在庫
+        </button>
+        <button onclick="switchTab('customers'); return false;" id="mob-nav-customers" class="flex-1 flex flex-col items-center gap-1 p-2 text-gray-400 text-xs font-medium cursor-pointer">
+            <i class="ph-bold ph-users text-xl"></i> 顧客・施工
+        </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 custom-scrollbar space-y-6">
+
+        <!-- Group Passcode Real-Time Sync Bar -->
+        <div class="bg-[#111827] border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                    <i class="ph-bold ph-users-three text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-amber-400">グループ共有 (合言葉)</span>
+                        <span id="sync-mode-pill" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">即時同期</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400">同じ合言葉を入力した端末同士で在庫・案件を自動共有します</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="group-passcode-input" value="hachioji-paint" placeholder="合言葉を入力..." class="flex-1 sm:w-44 bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 focus:outline-none focus:border-amber-500">
+                <button onclick="connectGroupSync(); return false;" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer whitespace-nowrap shadow">
+                    共有開始
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= TAB 1: PROJECT REGISTRATION (案件登録) ================= -->
+        <section id="tab-projects" class="space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#161f31] p-6 rounded-2xl border border-gray-800 gold-glow">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-100 flex items-center gap-2">
+                        <i class="ph-bold ph-note-pencil text-amber-400"></i> 案件登録・施工スケジュール
+                    </h2>
+                    <p class="text-sm text-gray-400 mt-1">新規案件の登録と、見積日・着工日・完工予定日の日程管理を行います。</p>
+                </div>
+                <div class="relative w-full sm:w-64">
+                    <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="project-search" oninput="renderProjects()" placeholder="顧客名・住所で検索..." class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+
+            <!-- New Project Registration Form -->
+            <div class="bg-[#161f31] p-6 rounded-2xl border border-gray-800">
+                <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i class="ph-bold ph-plus-circle"></i> 新規案件登録
+                </h3>
+                <form id="project-form" onsubmit="addProject(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">顧客・現場名 *</label>
+                            <input type="text" id="p-client" required placeholder="例: 山田 太郎 邸" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">施工住所 *</label>
+                            <input type="text" id="p-address" required placeholder="例: 八王子市下恩方町..." class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">工事内容 *</label>
+                            <input type="text" id="p-content" required placeholder="例: 外壁シリコン・屋根遮熱塗装" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">ステータス</label>
+                            <select id="p-status" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                                <option value="見積中">見積中</option>
+                                <option value="施工中">施工中</option>
+                                <option value="完了">完了</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Date Inputs -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1"><i class="ph-bold ph-calendar"></i> 見積日</label>
+                            <input type="date" id="p-estimate-date" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1"><i class="ph-bold ph-calendar-check"></i> 着工日</label>
+                            <input type="date" id="p-start-date" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1"><i class="ph-bold ph-flag-checkered"></i> 完工予定日</label>
+                            <input type="date" id="p-end-date" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center pt-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-400 mb-1">現場写真（任意）</label>
+                            <input type="file" id="p-photo" accept="image/*" class="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-gray-950 cursor-pointer">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-gray-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="ph-bold ph-check"></i> 案件を登録する
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Registered Projects Grid -->
+            <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- ================= TAB 2: MATERIALS & INVENTORY (材料・在庫管理) ================= -->
+        <section id="tab-materials" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#161f31] p-6 rounded-2xl border border-gray-800 gold-glow">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-100 flex items-center gap-2">
+                        <i class="ph-bold ph-package text-amber-400"></i> 材料・在庫管理 & Bluetooth計量
+                    </h2>
+                    <p class="text-sm text-gray-400 mt-1">残量(kg)の直接数値入力、はかり計測、在庫一覧のCSV・テキスト出力が可能です。</p>
+                </div>
+                <!-- Inventory Export Buttons -->
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="exportInventoryCSV(); return false;" class="flex-1 sm:flex-initial bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold px-3.5 py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="ph-bold ph-file-csv text-base"></i> CSV出力
+                    </button>
+                    <button onclick="copyInventoryList(); return false;" class="flex-1 sm:flex-initial bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold px-3.5 py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="ph-bold ph-copy text-base"></i> リストコピー
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- BLE Scale Panel -->
+                <div class="bg-[#161f31] p-6 rounded-2xl border border-gray-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                                <i class="ph-bold ph-bluetooth"></i> デジタルはかり連携
+                            </h3>
+                            <button onclick="connectBluetoothScale(); return false;" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
+                                <i class="ph-bold ph-link"></i> BLE接続
+                            </button>
+                        </div>
+                        <div class="bg-[#0b0f19] border border-gray-700 rounded-xl p-4 flex items-center justify-between mb-3">
+                            <div>
+                                <span class="text-[11px] text-gray-500 block uppercase font-mono">Scale Reading</span>
+                                <span id="scale-weight-display" class="text-3xl font-mono font-bold text-emerald-400 tracking-wider">0.00</span>
+                                <span class="text-sm font-bold text-gray-400 ml-1">kg</span>
+                            </div>
+                            <div class="flex flex-col gap-1.5 items-end">
+                                <button onclick="simulateScaleWeight(); return false;" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 transition-all cursor-pointer">
+                                    テスト計量シミュレーション
+                                </button>
+                                <span id="bt-status-label" class="text-[11px] text-amber-400/80">待機中 (数値直接入力も可)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500">※各材料カードの数値欄をタップすると直接残量(kg)を書き換えられます。</p>
+                </div>
+
+                <!-- Material Registration Form -->
+                <div class="bg-[#161f31] p-6 rounded-2xl border border-gray-800">
+                    <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="ph-bold ph-plus-circle"></i> 新規材料登録
+                    </h3>
+                    <form id="material-form" onsubmit="addMaterial(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">材料・塗料名 *</label>
+                                <input type="text" id="m-name" required placeholder="例: シリコン上塗" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">カラー・色番号</label>
+                                <input type="text" id="m-color" placeholder="例: 22-90B / 艶消し白" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">残量 (kg) *</label>
+                                <div class="flex gap-1.5">
+                                    <input type="number" step="0.01" id="m-qty" required placeholder="15.0" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                                    <button type="button" onclick="applyScaleToForm(); return false;" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 text-xs px-2.5 rounded-xl transition-all cursor-pointer whitespace-nowrap">
+                                        計量値
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">缶・ラベル写真（任意）</label>
+                                <input type="file" id="m-photo" accept="image/*" class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-gray-950 cursor-pointer">
+                            </div>
+                            <div class="flex items-end pt-2 sm:pt-0">
+                                <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-gray-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                                    <i class="ph-bold ph-check"></i> 材料を登録
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Materials Grid -->
+            <div id="materials-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- ================= TAB 3: CUSTOMERS & SITE MANAGEMENT (顧客・施工管理) ================= -->
+        <section id="tab-customers" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#161f31] p-6 rounded-2xl border border-gray-800 gold-glow">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-100 flex items-center gap-2">
+                        <i class="ph-bold ph-users text-amber-400"></i> 顧客・施工管理 & 現場アルバム
+                    </h2>
+                    <p class="text-sm text-gray-400 mt-1">顧客ごとの施工日程、使用塗料（カラー連動）、現場メモ、施工写真アルバムを管理します。</p>
+                </div>
+            </div>
+
+            <!-- Customers Grid -->
+            <div id="customers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+    </main>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        /**
+         * Optional Firebase Firestore Config:
+         * Paste your Firebase project config object here to enable cross-device cloud sync.
+         * When left empty, the app automatically syncs across tabs via localStorage using the Group Passcode.
+         */
+        const FIREBASE_CONFIG = null;
+
+        let db = null;
+        let firestoreUnsubscribe = null;
+        let currentGroup = localStorage.getItem('paint_group_passcode') || 'hachioji-paint';
+        let currentTab = 'projects';
+        let projects = [];
+        let materials = [];
+        let currentScaleWeight = 0.0;
+        let bluetoothDevice = null;
+
+        // Initialize Firebase if configured
+        try {
+            if (FIREBASE_CONFIG && typeof firebase !== 'undefined') {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                db = firebase.firestore();
+            }
+        } catch (err) {
+            console.warn('Firebase fallback to local sync:', err);
+        }
+
+        function getStorageKey() {
+            return `paint_pro_sync_${currentGroup}`;
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            ['projects', 'materials', 'customers'].forEach(t => {
+                const sec = document.getElementById(`tab-${t}`);
+                const nav = document.getElementById(`nav-${t}`);
+                const mob = document.getElementById(`mob-nav-${t}`);
+                if (t === tabId) {
+                    sec.classList.remove('hidden');
+                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-amber-500/10 text-amber-400 border border-amber-500/30 cursor-pointer";
+                    if (mob) mob.className = "flex-1 flex flex-col items-center gap-1 p-2 text-amber-400 text-xs font-medium cursor-pointer";
+                } else {
+                    sec.classList.add('hidden');
+                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 cursor-pointer";
+                    if (mob) mob.className = "flex-1 flex flex-col items-center gap-1 p-2 text-gray-400 text-xs font-medium cursor-pointer";
+                }
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return false;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgCol = type === 'success' ? 'bg-emerald-950/95 border-emerald-500/50 text-emerald-300' : 'bg-red-950/95 border-red-500/50 text-red-300';
+            const icon = type === 'success' ? 'ph-check-circle' : 'ph-warning-circle';
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border ${bgCol} shadow-xl backdrop-blur-md transition-all transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="ph-bold ${icon} text-lg"></i><span class="text-xs sm:text-sm font-medium">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function openPhotoModal(imgSrc) {
+            document.getElementById('modal-img-element').src = imgSrc;
+            document.getElementById('photo-modal').classList.remove('hidden');
+        }
+
+        function closePhotoModal() {
+            document.getElementById('photo-modal').classList.add('hidden');
+        }
+
+        function getDefaultSeedData() {
+            return {
+                projects: [
+                    {
+                        id: 'p1',
+                        client: '鈴木 一郎 邸',
+                        address: '八王子市元木1-2-3',
+                        content: '外壁シリコン塗装',
+                        status: '施工中',
+                        estimateDate: '2026-11-01',
+                        startDate: '2026-11-10',
+                        endDate: '2026-11-25',
+                        photo: '',
+                        album: [],
+                        memo: '近隣挨拶完了。南面下塗り工程まで進行中。',
+                        usedMaterials: ['複層弾性フィラー', 'シリコンクリーン上塗']
+                    },
+                    {
+                        id: 'p2',
+                        client: '佐藤 花子 邸',
+                        address: '八王子市下恩方町456',
+                        content: '屋根遮熱塗装・付帯部',
+                        status: '見積中',
+                        estimateDate: '2026-11-15',
+                        startDate: '2026-12-01',
+                        endDate: '2026-12-12',
+                        photo: '',
+                        album: [],
+                        memo: '色見本帳（22-90B / 艶消し白）で最終確認予定。',
+                        usedMaterials: []
+                    }
+                ],
+                materials: [
+                    { id: 'm1', name: '複層弾性フィラー', color: '艶消し白', qty: 18.5, photo: '' },
+                    { id: 'm2', name: 'シリコンクリーン上塗', color: '22-90B', qty: 12.0, photo: '' }
+                ]
+            };
+        }
+
+        function connectGroupSync(isInitial = false) {
+            const inputVal = document.getElementById('group-passcode-input').value.trim();
+            if (!inputVal) {
+                showToast('合言葉を入力してください', 'error');
+                return;
+            }
+            currentGroup = inputVal;
+            localStorage.setItem('paint_group_passcode', currentGroup);
+            document.getElementById('sidebar-group-label').innerText = currentGroup;
+
+            if (firestoreUnsubscribe) {
+                firestoreUnsubscribe();
+                firestoreUnsubscribe = null;
+            }
+
+            if (db) {
+                document.getElementById('sync-mode-pill').innerText = 'クラウド同期中';
+                firestoreUnsubscribe = db.collection('paint_groups').doc(currentGroup).onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        projects = data.projects || [];
+                        materials = data.materials || [];
+                    } else {
+                        const seed = getDefaultSeedData();
+                        projects = seed.projects;
+                        materials = seed.materials;
+                        saveData();
+                    }
+                    renderAll();
+                });
+            } else {
+                document.getElementById('sync-mode-pill').innerText = 'グループ同期アクティブ';
+                loadLocalGroupData();
+            }
+
+            if (!isInitial) {
+                showToast(`グループ「${currentGroup}」で同期を開始しました`);
+            }
+        }
+
+        function loadLocalGroupData() {
+            try {
+                const raw = localStorage.getItem(getStorageKey());
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    projects = parsed.projects || [];
+                    materials = parsed.materials || [];
+                } else {
+                    const seed = getDefaultSeedData();
+                    projects = seed.projects;
+                    materials = seed.materials;
+                    saveData();
+                }
+            } catch (e) {
+                const seed = getDefaultSeedData();
+                projects = seed.projects;
+                materials = seed.materials;
+            }
+            renderAll();
+        }
+
+        function saveData() {
+            const payload = {
+                projects,
+                materials,
+                updatedAt: Date.now()
+            };
+            localStorage.setItem(getStorageKey(), JSON.stringify(payload));
+            if (db) {
+                db.collection('paint_groups').doc(currentGroup).set(payload, { merge: true }).catch(err => {
+                    console.error('Firestore sync error:', err);
+                });
+            }
+        }
+
+        // Cross-tab real-time listener for localStorage
+        window.addEventListener('storage', (e) => {
+            if (e.key === getStorageKey() && e.newValue) {
+                try {
+                    const parsed = JSON.parse(e.newValue);
+                    projects = parsed.projects || [];
+                    materials = parsed.materials || [];
+                    renderAll();
+                } catch (err) {}
+            }
+        });
+
+        function renderAll() {
+            renderProjects();
+            renderMaterials();
+            renderCustomers();
+        }
+
+        function compressImage(base64Str, maxWidth, quality, callback) {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL('image/jpeg', quality));
+            };
+        }
+
+        // ================= PROJECT REGISTRATION LOGIC =================
+        function addProject(e) {
+            e.preventDefault();
+            const client = document.getElementById('p-client').value.trim();
+            const address = document.getElementById('p-address').value.trim();
+            const content = document.getElementById('p-content').value.trim();
+            const status = document.getElementById('p-status').value;
+            const estimateDate = document.getElementById('p-estimate-date').value;
+            const startDate = document.getElementById('p-start-date').value;
+            const endDate = document.getElementById('p-end-date').value;
+            const fileInput = document.getElementById('p-photo');
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    compressImage(event.target.result, 500, 0.72, (comp) => {
+                        saveProjRec(client, address, content, status, estimateDate, startDate, endDate, comp);
+                    });
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                saveProjRec(client, address, content, status, estimateDate, startDate, endDate, '');
+            }
+        }
+
+        function saveProjRec(client, address, content, status, estimateDate, startDate, endDate, photo) {
+            projects.unshift({
+                id: 'p_' + Date.now(),
+                client,
+                address,
+                content,
+                status,
+                estimateDate,
+                startDate,
+                endDate,
+                photo,
+                album: photo ? [photo] : [],
+                memo: '',
+                usedMaterials: []
+            });
+            saveData();
+            document.getElementById('project-form').reset();
+            renderAll();
+            showToast(`案件「${client}」を登録しました`);
+        }
+
+        function cycleProjectStatus(id) {
+            const p = projects.find(item => item.id === id);
+            if (!p) return;
+            const statuses = ['見積中', '施工中', '完了'];
+            p.status = statuses[(statuses.indexOf(p.status) + 1) % statuses.length];
+            saveData();
+            renderAll();
+            showToast(`ステータスを「${p.status}」に変更しました`);
+        }
+
+        function updateProjectPhoto(id, inputElem) {
+            if (inputElem.files && inputElem.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    compressImage(event.target.result, 600, 0.75, (comp) => {
+                        const p = projects.find(item => item.id === id);
+                        if (!p) return;
+                        p.photo = comp;
+                        if (!p.album) p.album = [];
+                        p.album.push(comp);
+                        saveData();
+                        renderAll();
+                        showToast(`「${p.client}」に現場写真を追加しました`);
+                    });
+                };
+                reader.readAsDataURL(inputElem.files[0]);
+            }
+        }
+
+        function deleteProject(id) {
+            projects = projects.filter(item => item.id !== id);
+            saveData();
+            renderAll();
+            showToast('案件を削除しました');
+        }
+
+        function renderProjects() {
+            const keyword = document.getElementById('project-search').value.toLowerCase();
+            const grid = document.getElementById('projects-grid');
+            const filtered = projects.filter(p =>
+                p.client.toLowerCase().includes(keyword) ||
+                p.address.toLowerCase().includes(keyword) ||
+                p.content.toLowerCase().includes(keyword)
+            );
+
+            grid.innerHTML = filtered.length === 0
+                ? '<div class="col-span-full p-8 text-center text-gray-500 bg-[#161f31] rounded-2xl border border-gray-800">該当する登録案件がありません</div>'
+                : '';
+
+            filtered.forEach(p => {
+                let badge = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                if (p.status === '施工中') badge = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+                if (p.status === '完了') badge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+
+                const photoEl = p.photo
+                    ? `<img src="${p.photo}" onclick="openPhotoModal('${p.photo}')" alt="現場" class="w-16 h-16 rounded-xl object-cover border border-gray-700 shrink-0 cursor-pointer hover:opacity-90 transition-all" title="タップで拡大">`
+                    : `<div class="w-16 h-16 rounded-xl bg-gray-800/80 border border-gray-700/60 flex items-center justify-center text-gray-500 text-[10px] shrink-0 text-center px-1">写真なし</div>`;
+
+                const estText = p.estimateDate ? `見積: ${p.estimateDate}` : '見積日未定';
+                const periodText = (p.startDate || p.endDate)
+                    ? `${p.startDate || '未定'} 〜 ${p.endDate || '未定'}`
+                    : '工期未設定';
+
+                grid.innerHTML += `
+                    <div class="bg-[#161f31] p-4 rounded-2xl border border-gray-800 flex flex-col justify-between gap-3 shadow-md hover:border-amber-500/40 transition-all">
+                        <div class="flex items-start gap-3">
+                            ${photoEl}
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h4 class="font-bold text-gray-100 truncate">${p.client}</h4>
+                                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0 ${badge}">${p.status}</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1 truncate"><i class="ph-bold ph-map-pin"></i> ${p.address}</p>
+                                <p class="text-xs text-amber-400 font-medium mt-1 truncate"><i class="ph-bold ph-wrench"></i> ${p.content}</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#0b0f19]/80 rounded-xl px-3 py-2 border border-gray-800/90 text-[11px] text-gray-300 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-400"><i class="ph-bold ph-calendar"></i> ${estText}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-amber-300/90 font-medium">
+                                <i class="ph-bold ph-calendar-check"></i> 工期: ${periodText}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-gray-800/80 text-xs">
+                            <button onclick="cycleProjectStatus('${p.id}')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700 transition-all cursor-pointer">
+                                ステータス切替
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <label class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1 transition-all">
+                                    <i class="ph-bold ph-camera"></i> 写真
+                                    <input type="file" accept="image/*" onchange="updateProjectPhoto('${p.id}', this)" class="hidden">
+                                </label>
+                                <button onclick="deleteProject('${p.id}')" class="text-red-400 hover:text-red-300 p-1.5 transition-all cursor-pointer" title="削除">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // ================= MATERIALS & INVENTORY LOGIC =================
+        function addMaterial(e) {
+            e.preventDefault();
+            const name = document.getElementById('m-name').value.trim();
+            const color = document.getElementById('m-color').value.trim() || '指定なし';
+            const qty = parseFloat(document.getElementById('m-qty').value) || 0;
+            const fileInput = document.getElementById('m-photo');
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    compressImage(event.target.result, 400, 0.72, (comp) => saveMatRec(name, color, qty, comp));
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                saveMatRec(name, color, qty, '');
+            }
+        }
+
+        function saveMatRec(name, color, qty, photo) {
+            materials.unshift({ id: 'm_' + Date.now(), name, color, qty, photo });
+            saveData();
+            document.getElementById('material-form').reset();
+            renderAll();
+            showToast(`材料「${name} (${color})」を登録しました`);
+        }
+
+        function setMaterialQtyDirect(id, inputElem) {
+            const m = materials.find(item => item.id === id);
+            if (!m) return;
+            const val = parseFloat(inputElem.value);
+            m.qty = isNaN(val) ? 0 : Math.max(0, parseFloat(val.toFixed(2)));
+            saveData();
+            showToast(`「${m.name}」の残量を ${m.qty}kg に保存しました`);
+        }
+
+        function updateMaterialQty(id, delta) {
+            const m = materials.find(item => item.id === id);
+            if (!m) return;
+            m.qty = Math.max(0, parseFloat((m.qty + delta).toFixed(2)));
+            saveData();
+            renderMaterials();
+        }
+
+        function applyScaleToRow(id) {
+            const m = materials.find(item => item.id === id);
+            if (!m) return;
+            m.qty = currentScaleWeight;
+            saveData();
+            renderMaterials();
+            showToast(`「${m.name}」に計量値 (${currentScaleWeight}kg) を反映しました`);
+        }
+
+        function updateMaterialPhoto(id, inputElem) {
+            if (inputElem.files && inputElem.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    compressImage(event.target.result, 400, 0.72, (comp) => {
+                        const m = materials.find(item => item.id === id);
+                        if (!m) return;
+                        m.photo = comp;
+                        saveData();
+                        renderMaterials();
+                        showToast(`「${m.name}」の写真を更新しました`);
+                    });
+                };
+                reader.readAsDataURL(inputElem.files[0]);
+            }
+        }
+
+        function deleteMaterial(id) {
+            materials = materials.filter(item => item.id !== id);
+            saveData();
+            renderAll();
+            showToast('材料を削除しました');
+        }
+
+        function exportInventoryCSV() {
+            if (materials.length === 0) {
+                showToast('出力する在庫データがありません', 'error');
+                return;
+            }
+            const bom = '\uFEFF';
+            const header = '材料名,カラー・色番号,残量(kg)\n';
+            const rows = materials.map(m => `"${m.name.replace(/"/g, '""')}","${(m.color || '').replace(/"/g, '""')}",${m.qty}`).join('\n');
+            const blob = new Blob([bom + header + rows], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `在庫一覧_${currentGroup}_${dateStr}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('在庫一覧CSVファイルを出力しました');
+        }
+
+        function copyInventoryList() {
+            if (materials.length === 0) {
+                showToast('コピーする在庫データがありません', 'error');
+                return;
+            }
+            const dateStr = new Date().toLocaleDateString('ja-JP');
+            const lines = [
+                `【塗料・材料 在庫一覧】(${dateStr})`,
+                ...materials.map(m => `・${m.name} [${m.color || '指定なし'}]: ${m.qty} kg`)
+            ];
+            const text = lines.join('\n');
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('在庫リストをクリップボードにコピーしました');
+            } catch (err) {
+                showToast('コピーに失敗しました', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function renderMaterials() {
+            const grid = document.getElementById('materials-grid');
+            grid.innerHTML = materials.length === 0
+                ? '<div class="col-span-full p-8 text-center text-gray-500 bg-[#161f31] rounded-2xl border border-gray-800">登録されている材料はありません</div>'
+                : '';
+
+            materials.forEach(m => {
+                const photoEl = m.photo
+                    ? `<img src="${m.photo}" onclick="openPhotoModal('${m.photo}')" alt="材料" class="w-14 h-14 rounded-xl object-cover border border-gray-700 shrink-0 cursor-pointer hover:opacity-90" title="タップで拡大">`
+                    : `<div class="w-14 h-14 rounded-xl bg-gray-800/80 border border-gray-700/60 flex items-center justify-center text-gray-500 text-[10px] shrink-0 text-center px-1">写真なし</div>`;
+
+                grid.innerHTML += `
+                    <div class="bg-[#161f31] p-4 rounded-2xl border border-gray-800 flex flex-col justify-between gap-3 shadow-md hover:border-amber-500/40 transition-all">
+                        <div class="flex items-start gap-3">
+                            ${photoEl}
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-bold text-gray-100 truncate">${m.name}</h4>
+                                <span class="inline-block bg-gray-800 text-amber-300 text-[11px] px-2 py-0.5 rounded-md border border-gray-700 mt-1">
+                                    <i class="ph-bold ph-palette"></i> ${m.color || '指定なし'}
+                                </span>
+                                <div class="flex items-center gap-1.5 mt-2">
+                                    <input type="number" step="0.01" value="${m.qty}" onchange="setMaterialQtyDirect('${m.id}', this)" class="w-24 bg-[#0b0f19] border border-amber-500/40 rounded-lg px-2 py-1 font-mono font-bold text-amber-400 text-sm focus:outline-none focus:border-amber-400">
+                                    <span class="text-xs font-bold text-gray-400">kg</span>
+                                    <div class="inline-flex gap-1 ml-1">
+                                        <button onclick="updateMaterialQty('${m.id}', -0.5)" class="w-7 h-7 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer">-0.5</button>
+                                        <button onclick="updateMaterialQty('${m.id}', 0.5)" class="w-7 h-7 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer">+0.5</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-gray-800/80 text-xs">
+                            <button onclick="applyScaleToRow('${m.id}')" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-2.5 py-1.5 rounded-lg border border-blue-500/30 transition-all cursor-pointer">
+                                <i class="ph-bold ph-scales"></i> 計量値(${currentScaleWeight}kg)反映
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <label class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1 transition-all">
+                                    <i class="ph-bold ph-camera"></i> 写真
+                                    <input type="file" accept="image/*" onchange="updateMaterialPhoto('${m.id}', this)" class="hidden">
+                                </label>
+                                <button onclick="deleteMaterial('${m.id}')" class="text-red-400 hover:text-red-300 p-1.5 transition-all cursor-pointer" title="削除">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // ================= CUSTOMERS & SITE MANAGEMENT LOGIC =================
+        function updateProjectDateField(projectId, field, value) {
+            const p = projects.find(item => item.id === projectId);
+            if (!p) return;
+            p[field] = value;
+            saveData();
+            renderProjects();
+            showToast('施工日程を更新しました');
+        }
+
+        function updateProjectMemo(projectId, textareaElem) {
+            const p = projects.find(item => item.id === projectId);
+            if (!p) return;
+            p.memo = textareaElem.value;
+            saveData();
+        }
+
+        function toggleUsedMaterial(projectId, materialName) {
+            const p = projects.find(item => item.id === projectId);
+            if (!p) return;
+            if (!p.usedMaterials) p.usedMaterials = [];
+            const idx = p.usedMaterials.indexOf(materialName);
+            if (idx > -1) {
+                p.usedMaterials.splice(idx, 1);
+            } else {
+                p.usedMaterials.push(materialName);
+            }
+            saveData();
+            renderCustomers();
+            showToast('使用材料を更新しました');
+        }
+
+        function addAlbumPhoto(projectId, inputElem) {
+            if (inputElem.files && inputElem.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    compressImage(event.target.result, 700, 0.75, (comp) => {
+                        const p = projects.find(item => item.id === projectId);
+                        if (!p) return;
+                        if (!p.album) p.album = [];
+                        p.album.push(comp);
+                        if (!p.photo) p.photo = comp;
+                        saveData();
+                        renderAll();
+                        showToast('現場アルバムに写真を追加しました');
+                    });
+                };
+                reader.readAsDataURL(inputElem.files[0]);
+            }
+        }
+
+        function removeAlbumPhoto(projectId, photoIndex) {
+            const p = projects.find(item => item.id === projectId);
+            if (!p || !p.album) return;
+            p.album.splice(photoIndex, 1);
+            saveData();
+            renderAll();
+            showToast('アルバムから写真を削除しました');
+        }
+
+        function renderCustomers() {
+            const grid = document.getElementById('customers-grid');
+            grid.innerHTML = projects.length === 0
+                ? '<div class="col-span-full p-8 text-center text-gray-500 bg-[#161f31] rounded-2xl border border-gray-800">顧客・施工データがありません（「案件登録」タブから登録できます）</div>'
+                : '';
+
+            projects.forEach(p => {
+                let badge = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                if (p.status === '施工中') badge = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+                if (p.status === '完了') badge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+
+                let albumHtml = '<div class="flex items-center gap-2 overflow-x-auto py-1 custom-scrollbar">';
+                if (p.album && p.album.length > 0) {
+                    p.album.forEach((imgSrc, idx) => {
+                        albumHtml += `
+                            <div class="relative shrink-0">
+                                <img src="${imgSrc}" onclick="openPhotoModal('${imgSrc}')" alt="現場写真" class="w-16 h-16 rounded-xl object-cover border border-gray-700 cursor-pointer hover:opacity-90 transition-all">
+                                <button onclick="removeAlbumPhoto('${p.id}', ${idx})" class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow cursor-pointer" title="削除">×</button>
+                            </div>
+                        `;
+                    });
+                } else {
+                    albumHtml += '<span class="text-xs text-gray-500 italic py-2">アルバムに写真がありません</span>';
+                }
+                albumHtml += '</div>';
+
+                let matsHtml = '<div class="flex flex-wrap gap-1.5 mt-1">';
+                if (materials.length === 0) {
+                    matsHtml += '<span class="text-xs text-gray-500">材料・在庫タブで材料を登録してください</span>';
+                } else {
+                    materials.forEach(m => {
+                        const isUsed = p.usedMaterials && p.usedMaterials.includes(m.name);
+                        const btnClass = isUsed
+                            ? 'bg-amber-500 text-gray-950 font-bold border-amber-400'
+                            : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-600';
+                        const colorBadge = m.color ? `<span class="opacity-85 text-[10px] block font-normal">${m.color}</span>` : '';
+                        matsHtml += `<button onclick="toggleUsedMaterial('${p.id}', '${m.name}')" class="px-2.5 py-1.5 rounded-xl text-xs border transition-all cursor-pointer text-left ${btnClass}">${m.name}${colorBadge}</button>`;
+                    });
+                }
+                matsHtml += '</div>';
+
+                grid.innerHTML += `
+                    <div class="bg-[#161f31] p-4 rounded-2xl border border-gray-800 flex flex-col justify-between gap-3 shadow-md hover:border-amber-500/40 transition-all">
+                        <div>
+                            <div class="flex items-center justify-between gap-2">
+                                <h4 class="font-bold text-gray-100 truncate">${p.client}</h4>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0 ${badge}">${p.status}</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1 truncate"><i class="ph-bold ph-map-pin"></i> ${p.address}</p>
+                            <p class="text-xs text-amber-400/90 mt-0.5 truncate"><i class="ph-bold ph-wrench"></i> ${p.content}</p>
+                        </div>
+
+                        <!-- Construction Period Controls -->
+                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800/80 text-xs">
+                            <div>
+                                <label class="block text-[11px] text-gray-400 mb-0.5">着工日</label>
+                                <input type="date" value="${p.startDate || ''}" onchange="updateProjectDateField('${p.id}', 'startDate', this.value)" class="w-full bg-[#0b0f19] border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-gray-400 mb-0.5">完工予定日</label>
+                                <input type="date" value="${p.endDate || ''}" onchange="updateProjectDateField('${p.id}', 'endDate', this.value)" class="w-full bg-[#0b0f19] border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-amber-500">
+                            </div>
+                        </div>
+
+                        <!-- Customer Memo -->
+                        <div class="pt-2 border-t border-gray-800/80">
+                            <label class="block text-xs font-medium text-amber-400 mb-1 flex items-center gap-1">
+                                <i class="ph-bold ph-note-pencil"></i> 顧客・現場メモ (自動同期)
+                            </label>
+                            <textarea oninput="updateProjectMemo('${p.id}', this)" placeholder="打ち合わせ内容、色番号メモ、注意事項..." rows="2" class="w-full bg-[#0b0f19] border border-gray-700 rounded-xl p-2.5 text-xs text-gray-200 focus:outline-none focus:border-amber-500 custom-scrollbar">${p.memo || ''}</textarea>
+                        </div>
+
+                        <!-- Site Album -->
+                        <div class="pt-2 border-t border-gray-800/80">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-xs font-medium text-amber-400 flex items-center gap-1"><i class="ph-bold ph-images"></i> 現場アルバム</span>
+                                <label class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 text-[11px] px-2.5 py-1 rounded-lg cursor-pointer flex items-center gap-1 transition-all">
+                                    <i class="ph-bold ph-plus"></i> 写真追加
+                                    <input type="file" accept="image/*" onchange="addAlbumPhoto('${p.id}', this)" class="hidden">
+                                </label>
+                            </div>
+                            ${albumHtml}
+                        </div>
+
+                        <!-- Used Materials Selection -->
+                        <div class="pt-2 border-t border-gray-800/80">
+                            <span class="text-xs font-medium text-amber-400 flex items-center gap-1 mb-1"><i class="ph-bold ph-package"></i> 使用材料（カラー連動）</span>
+                            ${matsHtml}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // ================= BLUETOOTH SCALE LOGIC =================
+        async function connectBluetoothScale() {
+            try {
+                if (!navigator.bluetooth) {
+                    showToast('このブラウザはWeb Bluetoothに対応していません', 'error');
+                    return;
+                }
+                document.getElementById('bt-status-label').innerText = '接続検索中...';
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['weight_scale']
+                });
+                await bluetoothDevice.gatt.connect();
+                document.getElementById('bt-status-label').innerText = 'BLEはかり接続完了';
+                showToast('Bluetoothデジタルはかりに接続しました');
+            } catch (err) {
+                document.getElementById('bt-status-label').innerText = 'シミュレーション待機中';
+                showToast('BLE未接続（テスト計量または数値直接入力をご利用ください）');
+            }
+        }
+
+        function simulateScaleWeight() {
+            currentScaleWeight = parseFloat((Math.random() * 18 + 1.5).toFixed(2));
+            document.getElementById('scale-weight-display').innerText = currentScaleWeight.toFixed(2);
+            showToast(`テスト計量値: ${currentScaleWeight} kg を取得しました`);
+            renderMaterials();
+        }
+
+        function applyScaleToForm() {
+            document.getElementById('m-qty').value = currentScaleWeight;
+            showToast(`登録フォームに計量値 (${currentScaleWeight}kg) を適用しました`);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('group-passcode-input').value = currentGroup;
+            connectGroupSync(true);
+        });
+    </script>
+</body>
+</html>
