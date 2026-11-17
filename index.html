@@ -318,22 +318,27 @@
 
     </main>
 
-    <!-- Application JavaScript Logic -->
+        <!-- Application JavaScript Logic -->
     <script>
-        /**
-         * Optional Firebase Firestore Config:
-         * Paste your Firebase project config object here to enable cross-device cloud sync.
-         * When left empty, the app automatically syncs across tabs via localStorage using the Group Passcode.
-         */
-        const firebaseConfig = {
-  apiKey: "AIzaSyCHHzV1U9sQnDn67v7yuoGYblF5MajDKMY",
-  authDomain: "paint-management-pro.firebaseapp.com",
-  projectId: "paint-management-pro",
-  storageBucket: "paint-management-pro.firebasestorage.app",
-  messagingSenderId: "189178260447",
-  appId: "1:189178260447:web:66a7026630262fbd47726a",
-  measurementId: "G-CMLSFSBEVL"
-};
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCHHzV1U9sQnDn67v7yuoGYblF5MajDKMY",
+            authDomain: "paint-management-pro.firebaseapp.com",
+            projectId: "paint-management-pro",
+            storageBucket: "paint-management-pro.firebasestorage.app",
+            messagingSenderId: "189178260447",
+            appId: "1:189178260447:web:66a7026630262fbd47726a",
+            measurementId: "G-CMLSFSBEVL"
+        };
+
+        let db = null;
+        let currentGroup = localStorage.getItem('paint_pro_group') || 'hachioji-paint';
+        let unsubscribeFirestore = null;
+
+        try {
+            if (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey) {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                db = firebase.firestore();
+            }
         } catch (err) {
             console.warn('Firebase fallback to local sync:', err);
         }
@@ -350,17 +355,18 @@
                 const mob = document.getElementById(`mob-nav-${t}`);
                 if (t === tabId) {
                     sec.classList.remove('hidden');
-                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-amber-500/10 text-amber-400 border border-amber-500/30 cursor-pointer";
-                    if (mob) mob.className = "flex-1 flex flex-col items-center gap-1 p-2 text-amber-400 text-xs font-medium cursor-pointer";
+                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all bg-gold-500 text-dark-950 shadow-lg shadow-gold-500/20";
+                    if (mob) mob.className = "flex-1 flex flex-col items-center justify-center py-2 text-gold-400";
                 } else {
                     sec.classList.add('hidden');
-                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 cursor-pointer";
-                    if (mob) mob.className = "flex-1 flex flex-col items-center gap-1 p-2 text-gray-400 text-xs font-medium cursor-pointer";
+                    if (nav) nav.className = "w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all text-gray-400 hover:bg-dark-800 hover:text-white";
+                    if (mob) mob.className = "flex-1 flex flex-col items-center justify-center py-2 text-gray-500 hover:text-gray-300";
                 }
             });
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return false;
         }
+
 
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
