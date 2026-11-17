@@ -206,7 +206,7 @@
                                 <input id="proj-photos-input" type="file" accept="image/*" multiple class="hidden" onchange="handleNewProjectPhotos(this)">
                             </label>
                         </div>
-                        <div id="new-proj-photo-preview" class="flex gap-2.5 overflow-x-auto no-scrollbar empty:hidden pt-1"></div>
+                        <div id="new-proj-photo-preview" class="grid grid-cols-4 sm:grid-cols-6 gap-2 empty:hidden pt-1"></div>
                     </div>
 
                     <div>
@@ -221,7 +221,7 @@
                     </div>
                 </form>
 
-                <!-- Registered Projects Summary (名前・現場住所・ステータス・着工日・メモ書き表示) -->
+                <!-- Registered Projects Summary -->
                 <div class="space-y-3 pt-2">
                     <div class="flex items-center justify-between">
                         <h3 class="text-sm font-extrabold uppercase tracking-wider text-gray-400">登録済み案件一覧</h3>
@@ -352,13 +352,18 @@
         </button>
     </nav>
 
-    <!-- Fullscreen Photo Preview Modal (拡大表示＆変更・削除操作対応) -->
+    <!-- Fullscreen Photo Preview Modal (拡大表示・前へ/次へ・変更・削除対応) -->
     <div id="photo-modal" onclick="closePhotoModal()" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4">
         <div onclick="event.stopPropagation()" class="w-full max-w-4xl flex items-center justify-between gap-2 mb-3">
             <div id="modal-photo-actions" class="flex items-center gap-2"></div>
             <button onclick="closePhotoModal()" class="text-white/80 hover:text-white bg-dark-800 border border-dark-700 rounded-full px-4 py-1.5 text-xs font-bold">閉じる</button>
         </div>
-        <img id="modal-img" src="" alt="現場写真" onclick="event.stopPropagation()" class="max-w-full max-h-[80vh] rounded-xl border border-dark-700 shadow-2xl">
+        <div onclick="event.stopPropagation()" class="relative w-full max-w-4xl flex items-center justify-center">
+            <button id="modal-prev-btn" onclick="stepPhotoModal(-1)" class="hidden absolute left-2 z-10 w-10 h-10 rounded-full bg-dark-900/90 hover:bg-dark-800 border border-dark-600 text-white font-black flex items-center justify-center shadow-lg">‹</button>
+            <img id="modal-img" src="" alt="現場写真" class="max-w-full max-h-[76vh] rounded-xl border border-dark-700 shadow-2xl object-contain">
+            <button id="modal-next-btn" onclick="stepPhotoModal(1)" class="hidden absolute right-2 z-10 w-10 h-10 rounded-full bg-dark-900/90 hover:bg-dark-800 border border-dark-600 text-white font-black flex items-center justify-center shadow-lg">›</button>
+        </div>
+        <div id="modal-photo-counter" onclick="event.stopPropagation()" class="mt-2.5 text-xs font-bold text-gray-400"></div>
     </div>
 
     <!-- Toast Notification -->
@@ -384,6 +389,7 @@
         let appState = { projects: [], materials: [] };
         let pendingProjectPhotos = [];
         let expandedCustomerIds = new Set();
+        let activeModalContext = { projectId: null, photoIdx: null };
 
         function createInitialSampleProjects() {
             return [
@@ -467,7 +473,6 @@
         }
 
         function updateSyncStatus(text, stateType) {
-            // stateType: 'cloud' | 'warn' | 'error'
             const dotClass = stateType === 'cloud'
                 ? 'bg-emerald-400 animate-pulse'
                 : (stateType === 'error' ? 'bg-red-400' : 'bg-gold-400');
@@ -566,18 +571,15 @@
                 if (snap.exists) {
                     const data = snap.data() || {};
                     if (data.pin && String(data.pin) !== currentPin) {
-                        // 既存グループのPINと一致しない場合は同期を完全に拒否
                         isCloudAuthorized = false;
                         updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
                         showToast('エラー：このグループキーの4桁PINが一致しません');
                         return;
                     }
                     if (!data.pin) {
-                        // 従来のPIN未設定データに初回PINロックを設定
                         await docRef.set({ pin: currentPin }, { merge: true });
                     }
                 } else {
-                    // 新規グループ作成（ローカルの初期データをPIN付きで登録）
                     loadLocalData();
                     await docRef.set({
                         pin: currentPin,
@@ -587,7 +589,6 @@
                     });
                 }
 
-                // PIN認証通過後のみリアルタイム同期を開始
                 isCloudAuthorized = true;
                 loadLocalData();
 
@@ -692,9 +693,9 @@
         function renderNewProjectPhotoPreviews() {
             const box = document.getElementById('new-proj-photo-preview');
             box.innerHTML = pendingProjectPhotos.map((src, idx) => `
-                <div class="relative flex-shrink-0 group">
-                    <img src="${src}" onclick="openPhotoModal('${src}')" class="w-20 h-20 object-cover rounded-xl border border-dark-700 cursor-pointer">
-                    <button type="button" onclick="removePendingPhoto(${idx})" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center shadow">×</button>
+                <div class="relative aspect-square group">
+                    <img src="${src}" onclick="openPhotoModal('${src}')" class="w-full h-full object-cover rounded-xl border border-dark-700 cursor-pointer">
+                    <button type="button" onclick="removePendingPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/75 hover:bg-red-600 text-white text-[10px] font-black flex items-center justify-center shadow">×</button>
                 </div>
             `).join('');
         }
@@ -788,6 +789,7 @@
             }
         }
 
+        // 現場アルバム：写真まとめて追加
         async function handlePhotoUpload(id, input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
@@ -800,9 +802,10 @@
             }
             input.value = '';
             saveData();
-            showToast('現場写真をアルバムに追加しました');
+            showToast(`${files.length}枚の写真をアルバムに追加しました`);
         }
 
+        // 現場アルバム：指定写真の変更（差し替え）
         async function replaceProjectPhoto(projectId, photoIdx, input) {
             const file = input.files && input.files[0];
             if (!file) return;
@@ -814,11 +817,12 @@
             saveData();
             const modal = document.getElementById('photo-modal');
             if (!modal.classList.contains('hidden')) {
-                document.getElementById('modal-img').src = compressed;
+                openPhotoModal(compressed, projectId, photoIdx);
             }
-            showToast('写真を変更しました');
+            showToast('写真を差し替えました');
         }
 
+        // 現場アルバム：指定写真の削除
         function deleteProjectPhoto(projectId, photoIdx) {
             if (!confirm('この写真をアルバムから削除してもよろしいですか？')) return;
             const p = appState.projects.find(x => x.id === projectId);
@@ -829,10 +833,20 @@
             showToast('写真を削除しました');
         }
 
+        // 拡大プレビューモーダル（変更・削除・前後送り対応）
         function openPhotoModal(src, projectId = null, photoIdx = null) {
+            activeModalContext = { projectId, photoIdx };
             document.getElementById('modal-img').src = src;
+
             const actionsBox = document.getElementById('modal-photo-actions');
+            const prevBtn = document.getElementById('modal-prev-btn');
+            const nextBtn = document.getElementById('modal-next-btn');
+            const counterBox = document.getElementById('modal-photo-counter');
+
             if (projectId !== null && photoIdx !== null) {
+                const p = appState.projects.find(x => x.id === projectId);
+                const total = p && Array.isArray(p.photos) ? p.photos.length : 0;
+
                 actionsBox.innerHTML = `
                     <label class="cursor-pointer bg-gold-500 hover:bg-gold-400 text-dark-950 font-extrabold text-xs px-3.5 py-1.5 rounded-full transition">
                         写真を変更
@@ -842,15 +856,39 @@
                         削除
                     </button>
                 `;
+
+                if (total > 1) {
+                    prevBtn.classList.remove('hidden');
+                    nextBtn.classList.remove('hidden');
+                    counterBox.textContent = `${photoIdx + 1} / ${total} 枚目`;
+                } else {
+                    prevBtn.classList.add('hidden');
+                    nextBtn.classList.add('hidden');
+                    counterBox.textContent = total === 1 ? '1 / 1 枚目' : '';
+                }
             } else {
                 actionsBox.innerHTML = '';
+                prevBtn.classList.add('hidden');
+                nextBtn.classList.add('hidden');
+                counterBox.textContent = '';
             }
             document.getElementById('photo-modal').classList.remove('hidden');
         }
 
+        function stepPhotoModal(delta) {
+            const { projectId, photoIdx } = activeModalContext;
+            if (projectId === null || photoIdx === null) return;
+            const p = appState.projects.find(x => x.id === projectId);
+            if (!p || !Array.isArray(p.photos) || p.photos.length <= 1) return;
+            const nextIdx = (photoIdx + delta + p.photos.length) % p.photos.length;
+            openPhotoModal(p.photos[nextIdx], projectId, nextIdx);
+        }
+
         function closePhotoModal() {
+            activeModalContext = { projectId: null, photoIdx: null };
             document.getElementById('photo-modal').classList.add('hidden');
             document.getElementById('modal-photo-actions').innerHTML = '';
+            document.getElementById('modal-photo-counter').textContent = '';
         }
 
         function addMaterial(e) {
@@ -1108,7 +1146,10 @@
                     <div class="bg-dark-900 border ${isOpen ? 'border-gold-500/60' : 'border-dark-700/90 hover:border-dark-600'} rounded-2xl transition shadow-lg overflow-hidden">
                         <div onclick="toggleCustomerCard('${p.id}')" class="p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none active:bg-dark-850 transition">
                             <div class="min-w-0 flex-1">
-                                <h4 class="font-black text-white text-base tracking-tight truncate">${escapeHtml(p.name)}</h4>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-black text-white text-base tracking-tight truncate">${escapeHtml(p.name)}</h4>
+                                    ${photos.length > 0 ? `<span class="flex-shrink-0 text-[10px] font-bold text-gold-400 bg-dark-850 border border-dark-700 px-2 py-0.5 rounded-full">写真 ${photos.length}</span>` : ''}
+                                </div>
                                 <p class="text-xs text-gray-400 mt-0.5 truncate">${escapeHtml(p.address) || '住所未登録'}</p>
                             </div>
                             <div class="flex-shrink-0 flex items-center gap-2 text-gray-400">
@@ -1194,32 +1235,48 @@
                                 </div>
                             </div>
 
-                            <!-- 現場写真アルバム（変更・削除ボタン付き） -->
-                            <div class="pt-1">
-                                <div class="flex items-center justify-between mb-2.5">
-                                    <span class="text-xs font-extrabold text-gray-400 uppercase tracking-wider">現場アルバム (${photos.length})</span>
-                                    <label class="flex-shrink-0 cursor-pointer bg-dark-850 hover:bg-dark-800 text-gold-400 text-xs font-bold px-3 py-1.5 rounded-xl border border-gold-500/40 transition whitespace-nowrap">
-                                        写真を追加
+                            <!-- 現場アルバム（まとめてグリッド表示＆ワンタップ追加） -->
+                            <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider">現場アルバム</span>
+                                        <span class="text-[11px] font-extrabold text-gold-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-md">${photos.length} 枚</span>
+                                    </div>
+                                    <span class="text-[10px] text-gray-500">タップで拡大・変更・削除</span>
+                                </div>
+
+                                ${photos.length === 0
+                                    ? `
+                                    <label class="w-full py-5 rounded-xl border-2 border-dashed border-dark-700 hover:border-gold-500/60 bg-dark-900/60 hover:bg-dark-900 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition">
+                                        <svg class="w-6 h-6 text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        <span class="text-xs font-extrabold text-gold-400">ここをタップして写真をまとめて追加</span>
+                                        <span class="text-[10px] text-gray-500">複数枚を一度に選択できます</span>
                                         <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
                                     </label>
-                                </div>
-                                <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1 pt-1">
-                                    ${photos.length === 0
-                                        ? '<span class="text-[11px] text-gray-600 py-2">写真はまだ登録されていません</span>'
-                                        : photos.map((src, idx) => `
-                                            <div class="relative flex-shrink-0 w-24 space-y-1">
-                                                <div class="relative">
-                                                    <img src="${src}" onclick="openPhotoModal('${src}', '${p.id}', ${idx})" class="w-24 h-20 object-cover rounded-xl border border-dark-700 hover:border-gold-400 cursor-pointer transition">
-                                                    <button type="button" onclick="deleteProjectPhoto('${p.id}', ${idx})" title="削除" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[11px] font-black flex items-center justify-center shadow-md">×</button>
-                                                </div>
-                                                <label class="block w-full text-center cursor-pointer bg-dark-850 hover:bg-dark-800 text-gray-300 hover:text-gold-400 border border-dark-700 rounded-lg py-0.5 text-[10px] font-bold transition">
-                                                    変更
-                                                    <input type="file" accept="image/*" class="hidden" onchange="replaceProjectPhoto('${p.id}', ${idx}, this)">
-                                                </label>
+                                    `
+                                    : `
+                                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                        ${photos.map((src, idx) => `
+                                            <div class="relative aspect-square group rounded-xl overflow-hidden border border-dark-700 hover:border-gold-400 bg-dark-900 transition">
+                                                <img src="${src}" onclick="openPhotoModal('${src}', '${p.id}', ${idx})" class="w-full h-full object-cover cursor-pointer">
+                                                <span class="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none">#${idx + 1}</span>
+                                                <button type="button" onclick="event.stopPropagation(); deleteProjectPhoto('${p.id}', ${idx})" title="削除" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/75 hover:bg-red-600 text-white text-[10px] font-black flex items-center justify-center shadow transition">×</button>
                                             </div>
-                                        `).join('')
-                                    }
-                                </div>
+                                        `).join('')}
+
+                                        <!-- グリッド末尾のワンタップ追加タイル -->
+                                        <label class="aspect-square rounded-xl border-2 border-dashed border-gold-500/40 hover:border-gold-400 bg-dark-900/70 hover:bg-dark-850 flex flex-col items-center justify-center gap-1 cursor-pointer transition text-gold-400">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                            <span class="text-[10px] font-extrabold">写真を追加</span>
+                                            <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
+                                        </label>
+                                    </div>
+                                    `
+                                }
                             </div>
                         </div>
                     </div>
