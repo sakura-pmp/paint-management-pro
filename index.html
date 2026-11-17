@@ -194,8 +194,8 @@
                     <div class="bg-dark-850/70 border border-dark-700/80 rounded-xl p-4 space-y-3">
                         <div class="flex items-center justify-between gap-2">
                             <div class="min-w-0">
-                                <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider">現場写真の添付（現地調査・施工前など）</label>
-                                <span class="text-[11px] text-gray-500 block truncate">複数枚選択可能（案件ごとに分割保存されるため大容量対応）</span>
+                                <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider">現場写真の添付（外観、気になる箇所など）</label>
+                                <span class="text-[11px] text-gray-500 block truncate">※写真は4枚まで（登録後、現場アルバムへ自動反映）</span>
                             </div>
                             <label class="flex-shrink-0 cursor-pointer bg-dark-800 hover:bg-dark-700 text-gold-400 border border-gold-500/40 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -380,7 +380,7 @@
             measurementId: "G-CMLSFSBEVL"
         };
 
-        // 1案件あたりの最大ドキュメント容量（Firestore 1MB上限に対して余裕を持たせた920KBガード）
+        const MAX_PHOTOS_PER_PROJECT = 4;
         const MAX_PROJECT_BYTES = 920000;
 
         let db = null;
@@ -537,7 +537,6 @@
             });
         }
 
-        // 1案件だけを個別ドキュメントとしてクラウド保存（他案件や他ユーザーへの影響・容量圧迫を防止）
         async function saveSingleProject(project, onErrorRollback = null) {
             const payload = {
                 ...project,
@@ -548,7 +547,7 @@
             if (approxBytes > MAX_PROJECT_BYTES) {
                 if (typeof onErrorRollback === 'function') onErrorRollback();
                 renderAll();
-                showToast('1案件あたりの容量上限（約1MB）に達しました。この案件の不要な写真を削除してください');
+                showToast('1案件あたりの容量上限に達しました。不要な写真を削除してください');
                 return false;
             }
 
@@ -574,14 +573,13 @@
                     if (typeof onErrorRollback === 'function') onErrorRollback();
                     renderAll();
                     updateSyncStatus('保存容量エラー', 'error');
-                    showToast('クラウド保存に失敗しました（この案件の写真枚数を減らしてください）');
+                    showToast('クラウド保存に失敗しました');
                     return false;
                 }
             }
             return true;
         }
 
-        // 案件ドキュメントをクラウドから削除（ストレージ容量を解放）
         async function deleteSingleProjectFromCloud(projectId) {
             saveLocalCache();
             renderAll();
@@ -599,7 +597,6 @@
             }
         }
 
-        // 材料・在庫リストのみ親ドキュメントへ保存
         async function saveMaterialsOnly() {
             saveLocalCache();
             renderAll();
@@ -675,7 +672,6 @@
                         await groupDocRef.set({ pin: currentPin }, { merge: true });
                     }
 
-                    // 旧バージョンの一括保存配列（data.projects）が残っている場合は案件ごとのサブコレクションへ自動移行
                     if (Array.isArray(data.projects) && data.projects.length > 0) {
                         const batch = db.batch();
                         data.projects.forEach((legacyProj, idx) => {
@@ -694,7 +690,6 @@
                         await batch.commit();
                     }
                 } else {
-                    // 新規グループ作成：初期サンプル1件をサブコレクションへ保存
                     loadLocalData();
                     await groupDocRef.set({
                         pin: currentPin,
@@ -709,7 +704,6 @@
                 isCloudAuthorized = true;
                 loadLocalData();
 
-                // 1) 親ドキュメント（PINと材料在庫）のリアルタイム監視
                 unsubscribeGroupDoc = groupDocRef.onSnapshot(doc => {
                     if (!doc.exists) return;
                     const data = doc.data() || {};
@@ -728,7 +722,6 @@
                     updateSyncStatus('ローカル保存モード', 'warn');
                 });
 
-                // 2) 案件サブコレクション（1案件＝1ドキュメント）のリアルタイム監視
                 unsubscribeProjectsCol = projectsColRef.onSnapshot(querySnap => {
                     const loadedProjects = [];
                     querySnap.forEach(doc => {
@@ -787,7 +780,6 @@
             renderAll();
         }
 
-        // 軽量圧縮（最大幅560px・画質0.58）：1案件あたり約12〜15枚保存可能
         function compressImageFile(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -812,13 +804,26 @@
         async function handleNewProjectPhotos(input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
-            for (const file of files) {
+
+            const remaining = MAX_PHOTOS_PER_PROJECT - pendingProjectPhotos.length;
+            if (remaining <= 0) {
+                input.value = '';
+                return showToast(`写真は最大${MAX_PHOTOS_PER_PROJECT}枚までです`);
+            }
+
+            const targetFiles = files.slice(0, remaining);
+            for (const file of targetFiles) {
                 const compressed = await compressImageFile(file);
                 pendingProjectPhotos.push(compressed);
             }
             input.value = '';
             renderNewProjectPhotoPreviews();
-            showToast(`${files.length}枚の写真を添付しました`);
+
+            if (files.length > remaining) {
+                showToast(`※写真は4枚までのため、先頭${targetFiles.length}枚を添付しました`);
+            } else {
+                showToast(`${targetFiles.length}枚の写真を添付しました`);
+            }
         }
 
         function removePendingPhoto(idx) {
@@ -853,7 +858,7 @@
                 notes: document.getElementById('proj-notes').value.trim(),
                 status: '施工予定',
                 assignedMaterials: [],
-                photos: [...pendingProjectPhotos]
+                photos: pendingProjectPhotos.slice(0, MAX_PHOTOS_PER_PROJECT)
             };
 
             appState.projects.unshift(newProj);
@@ -931,7 +936,7 @@
             }
         }
 
-        // 現場アルバム：写真まとめて追加（1案件ドキュメントのみ更新）
+        // 現場アルバム：写真まとめて追加（最大4枚まで制限）
         async function handlePhotoUpload(id, input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
@@ -939,9 +944,16 @@
             if (!p) return;
             if (!Array.isArray(p.photos)) p.photos = [];
 
+            const remaining = MAX_PHOTOS_PER_PROJECT - p.photos.length;
+            if (remaining <= 0) {
+                input.value = '';
+                return showToast(`※写真は${MAX_PHOTOS_PER_PROJECT}枚まで登録できます`);
+            }
+
+            const targetFiles = files.slice(0, remaining);
             const prevPhotos = [...p.photos];
             const added = [];
-            for (const file of files) {
+            for (const file of targetFiles) {
                 const compressed = await compressImageFile(file);
                 added.push(compressed);
             }
@@ -952,7 +964,11 @@
                 p.photos = prevPhotos;
             });
             if (ok) {
-                showToast(`${added.length}枚の写真をアルバムに追加しました`);
+                if (files.length > remaining) {
+                    showToast(`※写真は4枚までのため、${added.length}枚を追加しました`);
+                } else {
+                    showToast(`${added.length}枚の写真をアルバムに追加しました`);
+                }
             }
         }
 
@@ -1301,13 +1317,15 @@
                     const isOpen = expandedCustomerIds.has(p.id);
                     const assigned = Array.isArray(p.assignedMaterials) ? p.assignedMaterials : [];
                     const photos = Array.isArray(p.photos) ? p.photos : [];
+                    const canAddMorePhotos = photos.length < MAX_PHOTOS_PER_PROJECT;
+
                     return `
                     <div class="bg-dark-900 border ${isOpen ? 'border-gold-500/60' : 'border-dark-700/90 hover:border-dark-600'} rounded-2xl transition shadow-lg overflow-hidden">
                         <div onclick="toggleCustomerCard('${p.id}')" class="p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none active:bg-dark-850 transition">
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2">
                                     <h4 class="font-black text-white text-base tracking-tight truncate">${escapeHtml(p.name)}</h4>
-                                    ${photos.length > 0 ? `<span class="flex-shrink-0 text-[10px] font-bold text-gold-400 bg-dark-850 border border-dark-700 px-2 py-0.5 rounded-full">写真 ${photos.length}</span>` : ''}
+                                    ${photos.length > 0 ? `<span class="flex-shrink-0 text-[10px] font-bold text-gold-400 bg-dark-850 border border-dark-700 px-2 py-0.5 rounded-full">写真 ${photos.length}/${MAX_PHOTOS_PER_PROJECT}</span>` : ''}
                                 </div>
                                 <p class="text-xs text-gray-400 mt-0.5 truncate">${escapeHtml(p.address) || '住所未登録'}</p>
                             </div>
@@ -1394,14 +1412,20 @@
                                 </div>
                             </div>
 
-                            <!-- 現場アルバム（案件単位で個別保存・まとめてグリッド表示） -->
+                            <!-- 現場アルバム -->
                             <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-2.5">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider">現場アルバム</span>
-                                        <span class="text-[11px] font-extrabold text-gold-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-md">${photos.length} 枚</span>
+                                <div class="flex items-start justify-between gap-2">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider">現場アルバム</span>
+                                            <span class="text-[11px] font-extrabold text-gold-400 bg-dark-900 border border-dark-700 px-2 py-0.5 rounded-md">${photos.length} / ${MAX_PHOTOS_PER_PROJECT} 枚</span>
+                                        </div>
+                                        <p class="text-[11px] text-gray-400 mt-1">外観、気になる箇所など</p>
                                     </div>
-                                    <span class="text-[10px] text-gray-500">タップで拡大・変更・削除</span>
+                                    <div class="text-right flex-shrink-0">
+                                        <span class="text-[10px] text-gray-500 block">タップで拡大・変更・削除</span>
+                                        <span class="text-[11px] font-bold text-gold-400 block mt-1">※写真は4枚まで</span>
+                                    </div>
                                 </div>
 
                                 ${photos.length === 0
@@ -1411,7 +1435,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                                         </svg>
                                         <span class="text-xs font-extrabold text-gold-400">ここをタップして写真をまとめて追加</span>
-                                        <span class="text-[10px] text-gray-500">複数枚を一度に選択できます</span>
+                                        <span class="text-[10px] text-gray-500">最大4枚までまとめて選択できます</span>
                                         <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
                                     </label>
                                     `
@@ -1425,7 +1449,7 @@
                                             </div>
                                         `).join('')}
 
-                                        <!-- グリッド末尾のワンタップ追加タイル -->
+                                        ${canAddMorePhotos ? `
                                         <label class="aspect-square rounded-xl border-2 border-dashed border-gold-500/40 hover:border-gold-400 bg-dark-900/70 hover:bg-dark-850 flex flex-col items-center justify-center gap-1 cursor-pointer transition text-gold-400">
                                             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
@@ -1433,6 +1457,7 @@
                                             <span class="text-[10px] font-extrabold">写真を追加</span>
                                             <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
                                         </label>
+                                        ` : ''}
                                     </div>
                                     `
                                 }
