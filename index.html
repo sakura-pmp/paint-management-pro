@@ -44,7 +44,6 @@
             color: #f3f4f6;
             -webkit-tap-highlight-color: transparent;
         }
-        /* CDN読み込み前でも非表示タブを確実に隠す */
         .tab-panel.hidden {
             display: none !important;
         }
@@ -168,7 +167,7 @@
                             <input id="proj-name" type="text" required placeholder="例：山田様邸 外壁・屋根塗装工事" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500 transition">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">施工住所・エリア</label>
+                            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">現場住所・エリア</label>
                             <input id="proj-address" type="text" placeholder="例：東京都架空区青空町1-2-3" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500 transition">
                         </div>
                     </div>
@@ -219,7 +218,7 @@
                     </div>
                 </form>
 
-                <!-- Registered Projects Summary (名前・ステータス・着工日・メモ書きのみ表示) -->
+                <!-- Registered Projects Summary (名前・現場住所・ステータス・着工日・メモ書き表示) -->
                 <div class="space-y-3 pt-2">
                     <div class="flex items-center justify-between">
                         <h3 class="text-sm font-extrabold uppercase tracking-wider text-gray-400">登録済み案件一覧</h3>
@@ -814,7 +813,7 @@
         function renderAll() {
             document.getElementById('project-count-badge').textContent = `${appState.projects.length} 件`;
 
-            // TAB 1: 登録済み案件一覧（名前・ステータス・着工日・メモ書きのみ表示）
+            // TAB 1: 登録済み案件一覧（ステータス・着工日・名前(現場名)・現場住所(編集連携)・メモ書き表示）
             const pList = document.getElementById('projects-list');
             if (appState.projects.length === 0) {
                 pList.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 text-xs font-bold uppercase tracking-wider bg-dark-900/60 rounded-2xl border border-dark-800">No Registered Projects</div>';
@@ -822,12 +821,16 @@
                 pList.innerHTML = appState.projects.map(p => `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-2xl p-5 space-y-3 transition shadow-lg">
                         <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0 space-y-1.5">
+                            <div class="min-w-0 flex-1 space-y-1.5">
                                 <div class="flex items-center gap-2.5 flex-wrap">
                                     <span class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${getStatusBadgeClass(p.status)}">${escapeHtml(p.status || '施工予定')}</span>
                                     <span class="text-xs font-bold text-gray-400">着工日: <strong class="text-gray-200">${escapeHtml(p.startDate) || '未定'}</strong></span>
                                 </div>
                                 <h4 class="font-black text-white text-base tracking-tight break-words">${escapeHtml(p.name)}</h4>
+                                <div class="pt-0.5">
+                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">現場住所</label>
+                                    <input type="text" value="${escapeHtml(p.address || '')}" placeholder="現場住所を入力..." onchange="autoUpdateProjectField('${p.id}', 'address', this.value.trim())" class="w-full bg-dark-950 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500 transition">
+                                </div>
                             </div>
                             <button onclick="deleteProject('${p.id}')" class="flex-shrink-0 text-gray-500 hover:text-red-400 text-xs font-bold px-2 py-1 rounded transition">削除</button>
                         </div>
@@ -959,7 +962,7 @@
                                     <input type="text" value="${escapeHtml(p.name)}" onchange="autoUpdateProjectField('${p.id}', 'name', this.value.trim())" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-gold-500">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">住所・エリア（タップで編集）</label>
+                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">現場住所・エリア（タップで編集）</label>
                                     <input type="text" value="${escapeHtml(p.address || '')}" placeholder="例：東京都架空区青空町1-2-3" onchange="autoUpdateProjectField('${p.id}', 'address', this.value.trim())" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
                                 </div>
                             </div>
@@ -1035,7 +1038,6 @@
             }
         }
 
-        // 初期表示時に「案件登録」タブを確実にアクティブにする
         switchTab('projects');
         startSyncListener();
     </script>
