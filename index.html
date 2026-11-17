@@ -107,7 +107,7 @@
         <div class="p-5 border-t border-dark-700/80">
             <div class="bg-dark-850 rounded-xl p-3.5 border border-dark-700/80 space-y-1">
                 <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Workspace</div>
-                <div id="sidebar-group-label" class="text-xs font-bold text-gold-400 truncate">hachioji-paint</div>
+                <div id="sidebar-group-label" class="text-xs font-bold text-gold-400 truncate">ID未設定</div>
                 <div id="sidebar-pin-label" class="text-[11px] font-bold text-gray-500">PIN: 未設定</div>
             </div>
         </div>
@@ -130,7 +130,7 @@
                     </div>
                     <div id="sync-status-mob" class="text-[11px] font-bold text-gold-400 bg-dark-850 border border-dark-700 px-2.5 py-1 rounded-full flex items-center gap-1.5">
                         <span class="w-1.5 h-1.5 rounded-full bg-gold-400"></span>
-                        <span>PIN未設定</span>
+                        <span>未同期</span>
                     </div>
                 </div>
 
@@ -138,14 +138,14 @@
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center bg-dark-850 border border-dark-700 rounded-xl p-1 w-full md:w-auto gap-1">
                         <span class="text-[11px] font-bold text-gray-400 pl-2 pr-1 whitespace-nowrap">KEY</span>
-                        <input id="group-input" type="text" value="hachioji-paint" placeholder="グループ名" class="min-w-0 bg-dark-950 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold flex-1 md:w-36 focus:outline-none focus:border-gold-500">
+                        <input id="group-input" type="text" value="" placeholder="お好きなIDを入力" class="min-w-0 bg-dark-950 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold flex-1 md:w-40 focus:outline-none focus:border-gold-500">
                         <span class="text-[11px] font-bold text-gray-400 pl-1.5 pr-0.5 whitespace-nowrap">PIN</span>
                         <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4桁" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)" class="w-16 flex-shrink-0 bg-dark-950 border border-dark-700 rounded-lg px-2 py-1 text-center text-xs text-gold-400 font-black tracking-widest focus:outline-none focus:border-gold-500">
                         <button onclick="changeGroup()" class="flex-shrink-0 bg-gold-500 hover:bg-gold-400 text-dark-950 font-extrabold text-xs px-3 py-1 rounded-lg transition whitespace-nowrap">同期</button>
                     </div>
                     <div id="sync-status" class="hidden md:flex text-xs font-bold text-gold-400 bg-dark-850 border border-dark-700 px-3 py-1.5 rounded-full items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-gold-400"></span>
-                        <span>4桁PINを入力して同期</span>
+                        <span>KEYと4桁PINを入力して同期</span>
                     </div>
                 </div>
             </div>
@@ -385,7 +385,7 @@
 
         let db = null;
         let currentTab = 'projects';
-        let currentGroup = localStorage.getItem('paint_pro_group') || 'hachioji-paint';
+        let currentGroup = localStorage.getItem('paint_pro_group') || '';
         let currentPin = localStorage.getItem('paint_pro_pin') || '';
         let isCloudAuthorized = false;
         let unsubscribeGroupDoc = null;
@@ -413,17 +413,23 @@
             ];
         }
 
-        function updateWorkspaceLabels() {
-            document.getElementById('group-input').value = currentGroup;
-            document.getElementById('pin-input').value = currentPin;
-            document.getElementById('sidebar-group-label').textContent = currentGroup;
-            document.getElementById('sidebar-pin-label').textContent = isValidPin(currentPin)
-                ? 'PIN: ****（分割同期中）'
-                : 'PIN: 未設定（同期停止中）';
+        function isValidGroup(group) {
+            return String(group || '').trim().length > 0;
         }
 
         function isValidPin(pin) {
             return /^\d{4}$/.test(String(pin || '').trim());
+        }
+
+        function updateWorkspaceLabels() {
+            document.getElementById('group-input').value = currentGroup;
+            document.getElementById('pin-input').value = currentPin;
+            document.getElementById('sidebar-group-label').textContent = isValidGroup(currentGroup)
+                ? currentGroup
+                : 'ID未設定';
+            document.getElementById('sidebar-pin-label').textContent = (isValidGroup(currentGroup) && isValidPin(currentPin))
+                ? 'PIN: ****（分割同期中）'
+                : 'PIN: 未設定（同期停止中）';
         }
 
         updateWorkspaceLabels();
@@ -438,8 +444,9 @@
         }
 
         function getStorageKey() {
+            const grp = isValidGroup(currentGroup) ? currentGroup : 'default';
             const pinSuffix = isValidPin(currentPin) ? currentPin : 'local';
-            return `paint_pro_split_${currentGroup}_${pinSuffix}`;
+            return `paint_pro_split_${grp}_${pinSuffix}`;
         }
 
         function escapeHtml(str) {
@@ -492,7 +499,7 @@
                 el.innerHTML = `<span class="w-2 h-2 rounded-full ${dotClass}"></span><span>${text}</span>`;
             }
             if (mobEl) {
-                const shortText = stateType === 'cloud' ? 'PIN同期中' : (stateType === 'error' ? 'PIN不一致' : 'PIN未設定');
+                const shortText = stateType === 'cloud' ? '同期中' : (stateType === 'error' ? 'PIN不一致' : '未同期');
                 mobEl.className = `text-[11px] font-bold ${textClass} bg-dark-850 border border-dark-700 px-2.5 py-1 rounded-full flex items-center gap-1.5`;
                 mobEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span><span>${shortText}</span>`;
             }
@@ -554,8 +561,8 @@
             saveLocalCache();
             renderAll();
 
-            if (!isValidPin(currentPin) || !isCloudAuthorized) {
-                updateSyncStatus('PIN未設定（端末保存のみ）', 'warn');
+            if (!isValidGroup(currentGroup) || !isValidPin(currentPin) || !isCloudAuthorized) {
+                updateSyncStatus('未同期（端末保存のみ）', 'warn');
                 return true;
             }
 
@@ -584,7 +591,7 @@
             saveLocalCache();
             renderAll();
 
-            if (!isValidPin(currentPin) || !isCloudAuthorized || !db) return;
+            if (!isValidGroup(currentGroup) || !isValidPin(currentPin) || !isCloudAuthorized || !db) return;
             try {
                 await db.collection('paint_groups')
                     .doc(currentGroup)
@@ -601,8 +608,8 @@
             saveLocalCache();
             renderAll();
 
-            if (!isValidPin(currentPin) || !isCloudAuthorized) {
-                updateSyncStatus('PIN未設定（端末保存のみ）', 'warn');
+            if (!isValidGroup(currentGroup) || !isValidPin(currentPin) || !isCloudAuthorized) {
+                updateSyncStatus('未同期（端末保存のみ）', 'warn');
                 return true;
             }
 
@@ -639,11 +646,11 @@
             stopAllListeners();
             isCloudAuthorized = false;
 
-            if (!isValidPin(currentPin)) {
+            if (!isValidGroup(currentGroup) || !isValidPin(currentPin)) {
                 loadLocalData();
-                updateSyncStatus('4桁PINを入力して同期', 'warn');
+                updateSyncStatus('KEYと4桁PINを入力して同期', 'warn');
                 if (isManualTrigger) {
-                    showToast('同期するには4桁の暗証番号（PIN）を入力してください');
+                    showToast('同期するにはお好きなID（KEY）と4桁のPINを入力してください');
                 }
                 return;
             }
@@ -665,7 +672,7 @@
                     if (data.pin && String(data.pin) !== currentPin) {
                         isCloudAuthorized = false;
                         updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
-                        showToast('エラー：このグループキーの4桁PINが一致しません');
+                        showToast('エラー：このIDの4桁PINが一致しません');
                         return;
                     }
                     if (!data.pin) {
@@ -742,7 +749,7 @@
                 });
 
                 if (isManualTrigger) {
-                    showToast(`グループ「${currentGroup}」（案件別分割同期）に接続しました`);
+                    showToast(`ID「${currentGroup}」（案件別分割同期）に接続しました`);
                 }
             } catch (err) {
                 console.error('PIN verification error:', err);
@@ -756,7 +763,8 @@
             const pinVal = document.getElementById('pin-input').value.trim();
 
             if (!val) {
-                return showToast('グループキーを入力してください');
+                document.getElementById('group-input').focus();
+                return showToast('お好きなID（KEY）を入力してください');
             }
             if (!isValidPin(pinVal)) {
                 document.getElementById('pin-input').focus();
@@ -936,7 +944,6 @@
             }
         }
 
-        // 現場アルバム：写真まとめて追加（最大4枚まで制限）
         async function handlePhotoUpload(id, input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
@@ -972,7 +979,6 @@
             }
         }
 
-        // 現場アルバム：指定写真の変更（差し替え）
         async function replaceProjectPhoto(projectId, photoIdx, input) {
             const file = input.files && input.files[0];
             if (!file) return;
@@ -996,7 +1002,6 @@
             }
         }
 
-        // 現場アルバム：指定写真の削除
         function deleteProjectPhoto(projectId, photoIdx) {
             if (!confirm('この写真をアルバムから削除してもよろしいですか？')) return;
             const p = appState.projects.find(x => x.id === projectId);
