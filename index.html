@@ -325,23 +325,15 @@
          * Paste your Firebase project config object here to enable cross-device cloud sync.
          * When left empty, the app automatically syncs across tabs via localStorage using the Group Passcode.
          */
-        const FIREBASE_CONFIG = null;
-
-        let db = null;
-        let firestoreUnsubscribe = null;
-        let currentGroup = localStorage.getItem('paint_group_passcode') || 'hachioji-paint';
-        let currentTab = 'projects';
-        let projects = [];
-        let materials = [];
-        let currentScaleWeight = 0.0;
-        let bluetoothDevice = null;
-
-        // Initialize Firebase if configured
-        try {
-            if (FIREBASE_CONFIG && typeof firebase !== 'undefined') {
-                firebase.initializeApp(FIREBASE_CONFIG);
-                db = firebase.firestore();
-            }
+        const firebaseConfig = {
+  apiKey: "AIzaSyCHHzV1U9sQnDn67v7yuoGYblF5MajDKMY",
+  authDomain: "paint-management-pro.firebaseapp.com",
+  projectId: "paint-management-pro",
+  storageBucket: "paint-management-pro.firebasestorage.app",
+  messagingSenderId: "189178260447",
+  appId: "1:189178260447:web:66a7026630262fbd47726a",
+  measurementId: "G-CMLSFSBEVL"
+};
         } catch (err) {
             console.warn('Firebase fallback to local sync:', err);
         }
