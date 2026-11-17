@@ -44,6 +44,10 @@
             color: #f3f4f6;
             -webkit-tap-highlight-color: transparent;
         }
+        /* CDN読み込み前でも非表示タブを確実に隠す */
+        .tab-panel.hidden {
+            display: none !important;
+        }
         input[type="date"]::-webkit-calendar-picker-indicator {
             filter: invert(0.85) sepia(1) saturate(3) hue-rotate(5deg);
             cursor: pointer;
@@ -145,10 +149,10 @@
             </div>
         </header>
 
-        <div class="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
+        <div class="max-w-6xl mx-auto p-4 md:p-8">
 
             <!-- TAB 1: 案件登録 -->
-            <section id="tab-projects" class="space-y-6">
+            <section id="tab-projects" class="tab-panel space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-dark-700/80 pb-4">
                     <div>
                         <span class="text-xs font-extrabold tracking-widest text-gold-400 uppercase">Project Registration</span>
@@ -226,7 +230,7 @@
             </section>
 
             <!-- TAB 2: 材料・在庫管理 -->
-            <section id="tab-materials" class="hidden space-y-6">
+            <section id="tab-materials" class="tab-panel hidden space-y-6">
                 <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-dark-700/80 pb-4">
                     <div>
                         <span class="text-xs font-extrabold tracking-widest text-gold-400 uppercase">Inventory &amp; Scale</span>
@@ -288,7 +292,7 @@
             </section>
 
             <!-- TAB 3: 顧客・施工管理 -->
-            <section id="tab-customers" class="hidden space-y-5">
+            <section id="tab-customers" class="tab-panel hidden space-y-5">
                 <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-dark-700/80 pb-4">
                     <div>
                         <span class="text-xs font-extrabold tracking-widest text-gold-400 uppercase">Client &amp; Construction</span>
@@ -505,7 +509,6 @@
             showToast(`グループ「${currentGroup}」へ切り替えました`);
         }
 
-        // Toggle Accordion in Customer Management
         function toggleCustomerCard(id) {
             if (expandedCustomerIds.has(id)) {
                 expandedCustomerIds.delete(id);
@@ -515,7 +518,6 @@
             renderAll();
         }
 
-        // Image Compression Helper
         function compressImageFile(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -563,7 +565,6 @@
             `).join('');
         }
 
-        // Projects Logic
         function addProject(e) {
             e.preventDefault();
             const name = document.getElementById('proj-name').value.trim();
@@ -607,7 +608,6 @@
             }
         }
 
-        // Auto-save individual field in Customer Management tab
         function autoUpdateProjectField(id, field, value) {
             const p = appState.projects.find(x => x.id === id);
             if (!p) return;
@@ -617,7 +617,6 @@
             showToast('変更を自動保存しました');
         }
 
-        // Assign registered material to customer project
         function assignMaterialToProject(projectId) {
             const select = document.getElementById(`mat-select-${projectId}`);
             if (!select || !select.value) return showToast('追加する材料を選択してください');
@@ -679,7 +678,6 @@
             document.getElementById('photo-modal').classList.add('hidden');
         }
 
-        // Materials Logic
         function addMaterial(e) {
             e.preventDefault();
             const maker = document.getElementById('mat-maker').value.trim();
@@ -781,7 +779,6 @@
             return 'bg-dark-800 text-gray-300 border-dark-600';
         }
 
-        // Helper to extract primary date & year for sorting/filtering
         function getProjectPrimaryDate(p) {
             return p.startDate || p.estDate || p.endDate || '';
         }
@@ -817,7 +814,7 @@
         function renderAll() {
             document.getElementById('project-count-badge').textContent = `${appState.projects.length} 件`;
 
-            // Render Projects Tab (名前・ステータス・着工日・メモ書きのみ表示)
+            // TAB 1: 登録済み案件一覧（名前・ステータス・着工日・メモ書きのみ表示）
             const pList = document.getElementById('projects-list');
             if (appState.projects.length === 0) {
                 pList.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 text-xs font-bold uppercase tracking-wider bg-dark-900/60 rounded-2xl border border-dark-800">No Registered Projects</div>';
@@ -841,7 +838,7 @@
                 `).join('');
             }
 
-            // Render Materials Tab
+            // TAB 2: 材料・在庫管理
             const mList = document.getElementById('materials-list');
             if (appState.materials.length === 0) {
                 mList.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 text-xs font-bold uppercase tracking-wider bg-dark-900/60 rounded-2xl border border-dark-800">No Inventory Items</div>';
@@ -881,7 +878,7 @@
                 `}).join('');
             }
 
-            // Render Customers Tab (Compact List + Expandable Hidden Tab + Sort & Year Filter)
+            // TAB 3: 顧客・施工管理
             updateYearFilterOptions();
             const cGrid = document.getElementById('customers-grid');
             if (appState.projects.length === 0) {
@@ -929,7 +926,6 @@
                     const assigned = Array.isArray(p.assignedMaterials) ? p.assignedMaterials : [];
                     return `
                     <div class="bg-dark-900 border ${isOpen ? 'border-gold-500/60' : 'border-dark-700/90 hover:border-dark-600'} rounded-2xl transition shadow-lg overflow-hidden">
-                        <!-- 一覧ヘッダー（名前と住所のみ表示・タップで詳細開閉） -->
                         <div onclick="toggleCustomerCard('${p.id}')" class="p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none active:bg-dark-850 transition">
                             <div class="min-w-0 flex-1">
                                 <h4 class="font-black text-white text-base tracking-tight truncate">${escapeHtml(p.name)}</h4>
@@ -943,9 +939,7 @@
                             </div>
                         </div>
 
-                        <!-- 隠しタブ詳細パネル（タップで展開・変更即自動保存） -->
                         <div class="${isOpen ? 'block' : 'hidden'} border-t border-dark-800 p-4 md:p-5 space-y-4 bg-dark-900/50">
-                            <!-- ステータス＆削除 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-xs font-extrabold text-gray-400">施工ステータス</span>
                                 <div class="flex items-center gap-2">
@@ -959,7 +953,6 @@
                                 </div>
                             </div>
 
-                            <!-- 顧客名・住所の直接編集（タップで編集・自動保存） -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-dark-950/90 border border-dark-800 rounded-xl p-3.5">
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-500 mb-1">顧客名・現場名称（タップで編集）</label>
@@ -971,7 +964,6 @@
                                 </div>
                             </div>
 
-                            <!-- 日程・工事内容メモの自動保存編集エリア -->
                             <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-3">
                                 <div class="flex items-center justify-between">
                                     <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider">工程日程・工事内容メモ</span>
@@ -999,7 +991,6 @@
                                 </div>
                             </div>
 
-                            <!-- 使用材料の選択・割り当てエリア -->
                             <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-2.5">
                                 <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider block">使用材料・カラー選択</span>
                                 <div class="flex items-center gap-2 w-full">
@@ -1023,7 +1014,6 @@
                                 </div>
                             </div>
 
-                            <!-- 現場写真アルバム -->
                             <div class="pt-1">
                                 <div class="flex items-center justify-between mb-2.5">
                                     <span class="text-xs font-extrabold text-gray-400 uppercase tracking-wider">現場アルバム (${(p.photos||[]).length})</span>
@@ -1045,6 +1035,8 @@
             }
         }
 
+        // 初期表示時に「案件登録」タブを確実にアクティブにする
+        switchTab('projects');
         startSyncListener();
     </script>
 </body>
