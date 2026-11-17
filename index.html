@@ -168,7 +168,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">現場住所・エリア</label>
-                            <input id="proj-address" type="text" placeholder="例：東京都架空区青空町1-2-3" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500 transition">
+                            <input id="proj-address" type="text" placeholder="例：東京都新宿区、神奈川県横浜市" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500 transition">
                         </div>
                     </div>
 
@@ -379,6 +379,23 @@
         let pendingProjectPhotos = [];
         let expandedCustomerIds = new Set();
 
+        function createInitialSampleProjects() {
+            return [
+                {
+                    id: 'sample-project-1',
+                    name: '山田様邸 外壁・屋根塗装工事',
+                    address: '東京都架空区青空町1-2-3',
+                    estDate: '2026-11-10',
+                    startDate: '2026-11-20',
+                    endDate: '2026-12-05',
+                    notes: '足場架設・高圧洗浄後に外壁3回塗り施工予定。近隣挨拶完了済。',
+                    status: '施工予定',
+                    assignedMaterials: [],
+                    photos: []
+                }
+            ];
+        }
+
         document.getElementById('group-input').value = currentGroup;
         document.getElementById('sidebar-group-label').textContent = currentGroup;
 
@@ -446,10 +463,17 @@
                     appState.projects = Array.isArray(parsed.projects) ? parsed.projects : [];
                     appState.materials = Array.isArray(parsed.materials) ? parsed.materials : [];
                 } else {
-                    appState = { projects: [], materials: [] };
+                    appState = {
+                        projects: createInitialSampleProjects(),
+                        materials: []
+                    };
+                    localStorage.setItem(getStorageKey(), JSON.stringify(appState));
                 }
             } catch (e) {
-                appState = { projects: [], materials: [] };
+                appState = {
+                    projects: createInitialSampleProjects(),
+                    materials: []
+                };
             }
             renderAll();
         }
@@ -963,7 +987,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-gray-500 mb-1">現場住所・エリア（タップで編集）</label>
-                                    <input type="text" value="${escapeHtml(p.address || '')}" placeholder="例：東京都架空区青空町1-2-3" onchange="autoUpdateProjectField('${p.id}', 'address', this.value.trim())" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
+                                    <input type="text" value="${escapeHtml(p.address || '')}" placeholder="例：東京都新宿区、神奈川県横浜市" onchange="autoUpdateProjectField('${p.id}', 'address', this.value.trim())" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
                                 </div>
                             </div>
 
