@@ -195,7 +195,7 @@
                         <div class="flex items-center justify-between gap-2">
                             <div class="min-w-0">
                                 <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider">現場写真の添付（現地調査・施工前など）</label>
-                                <span class="text-[11px] text-gray-500 block truncate">複数枚選択可能（軽量自動圧縮してアルバムへ反映）</span>
+                                <span class="text-[11px] text-gray-500 block truncate">複数枚選択可能（案件ごとに分割保存されるため大容量対応）</span>
                             </div>
                             <label class="flex-shrink-0 cursor-pointer bg-dark-800 hover:bg-dark-700 text-gold-400 border border-gold-500/40 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -380,12 +380,16 @@
             measurementId: "G-CMLSFSBEVL"
         };
 
+        // 1案件あたりの最大ドキュメント容量（Firestore 1MB上限に対して余裕を持たせた920KBガード）
+        const MAX_PROJECT_BYTES = 920000;
+
         let db = null;
         let currentTab = 'projects';
         let currentGroup = localStorage.getItem('paint_pro_group') || 'hachioji-paint';
         let currentPin = localStorage.getItem('paint_pro_pin') || '';
         let isCloudAuthorized = false;
-        let unsubscribeFirestore = null;
+        let unsubscribeGroupDoc = null;
+        let unsubscribeProjectsCol = null;
         let appState = { projects: [], materials: [] };
         let pendingProjectPhotos = [];
         let expandedCustomerIds = new Set();
@@ -403,7 +407,8 @@
                     notes: '足場架設・高圧洗浄後に外壁3回塗り施工予定。近隣挨拶完了済。',
                     status: '施工予定',
                     assignedMaterials: [],
-                    photos: []
+                    photos: [],
+                    createdAt: Date.now()
                 }
             ];
         }
@@ -413,7 +418,7 @@
             document.getElementById('pin-input').value = currentPin;
             document.getElementById('sidebar-group-label').textContent = currentGroup;
             document.getElementById('sidebar-pin-label').textContent = isValidPin(currentPin)
-                ? 'PIN: ****（認証ロック中）'
+                ? 'PIN: ****（分割同期中）'
                 : 'PIN: 未設定（同期停止中）';
         }
 
@@ -434,7 +439,7 @@
 
         function getStorageKey() {
             const pinSuffix = isValidPin(currentPin) ? currentPin : 'local';
-            return `paint_pro_sync_${currentGroup}_${pinSuffix}`;
+            return `paint_pro_split_${currentGroup}_${pinSuffix}`;
         }
 
         function escapeHtml(str) {
@@ -493,6 +498,14 @@
             }
         }
 
+        function saveLocalCache() {
+            try {
+                localStorage.setItem(getStorageKey(), JSON.stringify(appState));
+            } catch (e) {
+                console.warn('localStorage cache limit reached:', e);
+            }
+        }
+
         function loadLocalData() {
             try {
                 const saved = localStorage.getItem(getStorageKey());
@@ -505,7 +518,7 @@
                         projects: createInitialSampleProjects(),
                         materials: []
                     };
-                    localStorage.setItem(getStorageKey(), JSON.stringify(appState));
+                    saveLocalCache();
                 }
             } catch (e) {
                 appState = {
@@ -516,28 +529,30 @@
             renderAll();
         }
 
-        // Firestoreの1MB制限を超えないように軽量最適化＆容量チェック付き保存
-        async function saveData(onErrorRollback = null) {
+        function sortProjectsByNewest(list) {
+            return list.sort((a, b) => {
+                const ta = Number(a.createdAt || a.id) || 0;
+                const tb = Number(b.createdAt || b.id) || 0;
+                return tb - ta;
+            });
+        }
+
+        // 1案件だけを個別ドキュメントとしてクラウド保存（他案件や他ユーザーへの影響・容量圧迫を防止）
+        async function saveSingleProject(project, onErrorRollback = null) {
             const payload = {
-                pin: currentPin,
-                projects: appState.projects,
-                materials: appState.materials,
+                ...project,
                 updatedAt: Date.now()
             };
 
             const approxBytes = new Blob([JSON.stringify(payload)]).size;
-            if (approxBytes > 950000) {
+            if (approxBytes > MAX_PROJECT_BYTES) {
                 if (typeof onErrorRollback === 'function') onErrorRollback();
                 renderAll();
-                showToast('容量上限（1MB）のため追加できませんでした。不要な写真を削除してください');
+                showToast('1案件あたりの容量上限（約1MB）に達しました。この案件の不要な写真を削除してください');
                 return false;
             }
 
-            try {
-                localStorage.setItem(getStorageKey(), JSON.stringify(appState));
-            } catch (storageErr) {
-                console.warn('localStorage quota warning:', storageErr);
-            }
+            saveLocalCache();
             renderAll();
 
             if (!isValidPin(currentPin) || !isCloudAuthorized) {
@@ -547,26 +562,84 @@
 
             if (db) {
                 try {
-                    await db.collection('paint_groups').doc(currentGroup).set(payload, { merge: true });
-                    updateSyncStatus(`PIN認証同期完了 (${currentGroup})`, 'cloud');
+                    await db.collection('paint_groups')
+                        .doc(currentGroup)
+                        .collection('projects')
+                        .doc(String(project.id))
+                        .set(payload, { merge: true });
+                    updateSyncStatus(`個別同期完了 (${currentGroup})`, 'cloud');
                     return true;
                 } catch (err) {
-                    console.error('Firestore save error:', err);
+                    console.error('Firestore project save error:', err);
                     if (typeof onErrorRollback === 'function') onErrorRollback();
                     renderAll();
                     updateSyncStatus('保存容量エラー', 'error');
-                    showToast('クラウド保存に失敗しました（写真枚数を減らしてください）');
+                    showToast('クラウド保存に失敗しました（この案件の写真枚数を減らしてください）');
                     return false;
                 }
             }
             return true;
         }
 
-        async function startSyncListener(isManualTrigger = false) {
-            if (unsubscribeFirestore) {
-                unsubscribeFirestore();
-                unsubscribeFirestore = null;
+        // 案件ドキュメントをクラウドから削除（ストレージ容量を解放）
+        async function deleteSingleProjectFromCloud(projectId) {
+            saveLocalCache();
+            renderAll();
+
+            if (!isValidPin(currentPin) || !isCloudAuthorized || !db) return;
+            try {
+                await db.collection('paint_groups')
+                    .doc(currentGroup)
+                    .collection('projects')
+                    .doc(String(projectId))
+                    .delete();
+                updateSyncStatus(`同期完了 (${currentGroup})`, 'cloud');
+            } catch (err) {
+                console.error('Firestore project delete error:', err);
             }
+        }
+
+        // 材料・在庫リストのみ親ドキュメントへ保存
+        async function saveMaterialsOnly() {
+            saveLocalCache();
+            renderAll();
+
+            if (!isValidPin(currentPin) || !isCloudAuthorized) {
+                updateSyncStatus('PIN未設定（端末保存のみ）', 'warn');
+                return true;
+            }
+
+            if (db) {
+                try {
+                    await db.collection('paint_groups').doc(currentGroup).set({
+                        pin: currentPin,
+                        materials: appState.materials,
+                        updatedAt: Date.now()
+                    }, { merge: true });
+                    updateSyncStatus(`同期完了 (${currentGroup})`, 'cloud');
+                    return true;
+                } catch (err) {
+                    console.error('Firestore materials save error:', err);
+                    updateSyncStatus('端末保存モード', 'warn');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function stopAllListeners() {
+            if (unsubscribeGroupDoc) {
+                unsubscribeGroupDoc();
+                unsubscribeGroupDoc = null;
+            }
+            if (unsubscribeProjectsCol) {
+                unsubscribeProjectsCol();
+                unsubscribeProjectsCol = null;
+            }
+        }
+
+        async function startSyncListener(isManualTrigger = false) {
+            stopAllListeners();
             isCloudAuthorized = false;
 
             if (!isValidPin(currentPin)) {
@@ -585,10 +658,11 @@
             }
 
             updateSyncStatus(`PIN認証中 (${currentGroup})...`, 'warn');
-            const docRef = db.collection('paint_groups').doc(currentGroup);
+            const groupDocRef = db.collection('paint_groups').doc(currentGroup);
+            const projectsColRef = groupDocRef.collection('projects');
 
             try {
-                const snap = await docRef.get();
+                const snap = await groupDocRef.get();
                 if (snap.exists) {
                     const data = snap.data() || {};
                     if (data.pin && String(data.pin) !== currentPin) {
@@ -598,47 +672,84 @@
                         return;
                     }
                     if (!data.pin) {
-                        await docRef.set({ pin: currentPin }, { merge: true });
+                        await groupDocRef.set({ pin: currentPin }, { merge: true });
+                    }
+
+                    // 旧バージョンの一括保存配列（data.projects）が残っている場合は案件ごとのサブコレクションへ自動移行
+                    if (Array.isArray(data.projects) && data.projects.length > 0) {
+                        const batch = db.batch();
+                        data.projects.forEach((legacyProj, idx) => {
+                            const projId = String(legacyProj.id || (Date.now() + idx));
+                            const normalized = {
+                                ...legacyProj,
+                                id: projId,
+                                createdAt: legacyProj.createdAt || Number(projId) || (Date.now() - idx * 1000)
+                            };
+                            batch.set(projectsColRef.doc(projId), normalized, { merge: true });
+                        });
+                        batch.update(groupDocRef, {
+                            projects: firebase.firestore.FieldValue.delete(),
+                            updatedAt: Date.now()
+                        });
+                        await batch.commit();
                     }
                 } else {
+                    // 新規グループ作成：初期サンプル1件をサブコレクションへ保存
                     loadLocalData();
-                    await docRef.set({
+                    await groupDocRef.set({
                         pin: currentPin,
-                        projects: appState.projects,
                         materials: appState.materials,
                         updatedAt: Date.now()
                     });
+                    for (const initProj of appState.projects) {
+                        await projectsColRef.doc(String(initProj.id)).set(initProj);
+                    }
                 }
 
                 isCloudAuthorized = true;
                 loadLocalData();
 
-                unsubscribeFirestore = docRef.onSnapshot(doc => {
+                // 1) 親ドキュメント（PINと材料在庫）のリアルタイム監視
+                unsubscribeGroupDoc = groupDocRef.onSnapshot(doc => {
                     if (!doc.exists) return;
                     const data = doc.data() || {};
                     if (data.pin && String(data.pin) !== currentPin) {
                         isCloudAuthorized = false;
-                        if (unsubscribeFirestore) {
-                            unsubscribeFirestore();
-                            unsubscribeFirestore = null;
-                        }
+                        stopAllListeners();
                         updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
                         return;
                     }
-                    appState.projects = Array.isArray(data.projects) ? data.projects : [];
                     appState.materials = Array.isArray(data.materials) ? data.materials : [];
-                    try {
-                        localStorage.setItem(getStorageKey(), JSON.stringify(appState));
-                    } catch (e) {}
+                    saveLocalCache();
                     renderAll();
-                    updateSyncStatus(`PIN認証同期中 (${currentGroup})`, 'cloud');
+                    updateSyncStatus(`分割同期中 (${currentGroup})`, 'cloud');
                 }, err => {
-                    console.warn('Firestore listener error:', err);
+                    console.warn('Firestore group listener error:', err);
                     updateSyncStatus('ローカル保存モード', 'warn');
                 });
 
+                // 2) 案件サブコレクション（1案件＝1ドキュメント）のリアルタイム監視
+                unsubscribeProjectsCol = projectsColRef.onSnapshot(querySnap => {
+                    const loadedProjects = [];
+                    querySnap.forEach(doc => {
+                        const pData = doc.data();
+                        if (pData) {
+                            loadedProjects.push({
+                                ...pData,
+                                id: String(pData.id || doc.id)
+                            });
+                        }
+                    });
+                    appState.projects = sortProjectsByNewest(loadedProjects);
+                    saveLocalCache();
+                    renderAll();
+                    updateSyncStatus(`分割同期中 (${currentGroup})`, 'cloud');
+                }, err => {
+                    console.warn('Firestore projects listener error:', err);
+                });
+
                 if (isManualTrigger) {
-                    showToast(`グループ「${currentGroup}」（PIN認証済）と同期しました`);
+                    showToast(`グループ「${currentGroup}」（案件別分割同期）に接続しました`);
                 }
             } catch (err) {
                 console.error('PIN verification error:', err);
@@ -676,7 +787,7 @@
             renderAll();
         }
 
-        // 複数枚でも1MB制限に収まるよう軽量圧縮（最大幅540px・画質0.55）
+        // 軽量圧縮（最大幅560px・画質0.58）：1案件あたり約12〜15枚保存可能
         function compressImageFile(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -684,13 +795,13 @@
                     const img = new Image();
                     img.onload = function() {
                         const canvas = document.createElement('canvas');
-                        const maxDim = 540;
+                        const maxDim = 560;
                         const longest = Math.max(img.width, img.height);
                         const scale = Math.min(1, maxDim / longest);
                         canvas.width = Math.round(img.width * scale);
                         canvas.height = Math.round(img.height * scale);
                         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.55));
+                        resolve(canvas.toDataURL('image/jpeg', 0.58));
                     };
                     img.src = ev.target.result;
                 };
@@ -730,9 +841,10 @@
             const name = document.getElementById('proj-name').value.trim();
             if (!name) return;
 
-            const backupProjects = JSON.parse(JSON.stringify(appState.projects));
+            const now = Date.now();
             const newProj = {
-                id: Date.now().toString(),
+                id: now.toString(),
+                createdAt: now,
                 name: name,
                 address: document.getElementById('proj-address').value.trim(),
                 estDate: document.getElementById('proj-est-date').value,
@@ -745,8 +857,8 @@
             };
 
             appState.projects.unshift(newProj);
-            const ok = await saveData(() => {
-                appState.projects = backupProjects;
+            const ok = await saveSingleProject(newProj, () => {
+                appState.projects = appState.projects.filter(p => p.id !== newProj.id);
             });
             if (ok) {
                 pendingProjectPhotos = [];
@@ -757,10 +869,10 @@
         }
 
         function deleteProject(id) {
-            if (!confirm('この案件を削除してもよろしいですか？')) return;
+            if (!confirm('この案件とアルバム写真を削除してもよろしいですか？')) return;
             appState.projects = appState.projects.filter(p => p.id !== id);
             expandedCustomerIds.delete(id);
-            saveData();
+            deleteSingleProjectFromCloud(id);
             showToast('案件を削除しました');
         }
 
@@ -768,7 +880,7 @@
             const p = appState.projects.find(x => x.id === id);
             if (p) {
                 p.status = status;
-                saveData();
+                saveSingleProject(p);
                 showToast(`ステータスを「${status}」へ自動更新しました`);
             }
         }
@@ -778,7 +890,7 @@
             if (!p) return;
             if (p[field] === value) return;
             p[field] = value;
-            saveData();
+            saveSingleProject(p);
             showToast('変更を自動保存しました');
         }
 
@@ -806,7 +918,7 @@
                 color: mat.color
             });
 
-            saveData();
+            saveSingleProject(proj);
             showToast(`「${mat.name}（${mat.color}）」を使用材料に追加しました`);
         }
 
@@ -814,12 +926,12 @@
             const proj = appState.projects.find(p => p.id === projectId);
             if (proj && Array.isArray(proj.assignedMaterials)) {
                 proj.assignedMaterials.splice(matIndex, 1);
-                saveData();
+                saveSingleProject(proj);
                 showToast('使用材料から外しました');
             }
         }
 
-        // 現場アルバム：写真まとめて追加（保存完了後に成功トースト表示）
+        // 現場アルバム：写真まとめて追加（1案件ドキュメントのみ更新）
         async function handlePhotoUpload(id, input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
@@ -836,7 +948,7 @@
             p.photos.push(...added);
             input.value = '';
 
-            const ok = await saveData(() => {
+            const ok = await saveSingleProject(p, () => {
                 p.photos = prevPhotos;
             });
             if (ok) {
@@ -856,7 +968,7 @@
             p.photos[photoIdx] = compressed;
             input.value = '';
 
-            const ok = await saveData(() => {
+            const ok = await saveSingleProject(p, () => {
                 p.photos = prevPhotos;
             });
             if (ok) {
@@ -875,11 +987,10 @@
             if (!p || !Array.isArray(p.photos)) return;
             p.photos.splice(photoIdx, 1);
             closePhotoModal();
-            saveData();
+            saveSingleProject(p);
             showToast('写真を削除しました');
         }
 
-        // 拡大プレビューモーダル（変更・削除・前後送り対応）
         function openPhotoModal(src, projectId = null, photoIdx = null) {
             activeModalContext = { projectId, photoIdx };
             document.getElementById('modal-img').src = src;
@@ -953,7 +1064,7 @@
                 weight: Math.max(0, Number(weight.toFixed(1)))
             });
             e.target.reset();
-            saveData();
+            saveMaterialsOnly();
             showToast('在庫材料を追加しました');
         }
 
@@ -962,7 +1073,7 @@
             const num = parseFloat(val);
             if (m && !isNaN(num)) {
                 m.weight = Math.max(0, Number(num.toFixed(1)));
-                saveData();
+                saveMaterialsOnly();
             }
         }
 
@@ -970,7 +1081,7 @@
             const m = appState.materials.find(x => x.id === id);
             if (m) {
                 m.weight = Math.max(0, Number((m.weight + delta).toFixed(1)));
-                saveData();
+                saveMaterialsOnly();
             }
         }
 
@@ -979,7 +1090,7 @@
             if (m) {
                 const simulated = Number((Math.random() * 14 + 1).toFixed(1));
                 m.weight = simulated;
-                saveData();
+                saveMaterialsOnly();
                 showToast(`計測値を反映しました: ${simulated} kg`);
             }
         }
@@ -987,7 +1098,7 @@
         function deleteMaterial(id) {
             if (!confirm('この材料を在庫一覧から削除しますか？')) return;
             appState.materials = appState.materials.filter(m => m.id !== id);
-            saveData();
+            saveMaterialsOnly();
             showToast('材料を削除しました');
         }
 
@@ -1045,7 +1156,7 @@
         function getProjectYear(p) {
             const d = getProjectPrimaryDate(p);
             if (d && d.length >= 4) return d.slice(0, 4);
-            const ts = Number(p.id);
+            const ts = Number(p.createdAt || p.id);
             if (!isNaN(ts) && ts > 1000000000000) {
                 return new Date(ts).getFullYear().toString();
             }
@@ -1169,7 +1280,9 @@
                         const db = getProjectPrimaryDate(b) || '0000-01-01';
                         return db.localeCompare(da);
                     }
-                    return 0;
+                    const ta = Number(a.createdAt || a.id) || 0;
+                    const tb = Number(b.createdAt || b.id) || 0;
+                    return tb - ta;
                 });
 
                 if (filteredProjects.length === 0) {
@@ -1281,7 +1394,7 @@
                                 </div>
                             </div>
 
-                            <!-- 現場アルバム（まとめてグリッド表示＆ワンタップ追加） -->
+                            <!-- 現場アルバム（案件単位で個別保存・まとめてグリッド表示） -->
                             <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-2.5">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
