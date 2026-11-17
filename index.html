@@ -254,21 +254,32 @@
                     </div>
                 </div>
 
-                <!-- Add Material Form -->
-                <form onsubmit="addMaterial(event)" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-4 md:p-5 grid grid-cols-1 sm:grid-cols-12 gap-3 shadow-xl">
-                    <div class="sm:col-span-5">
-                        <input id="mat-name" type="text" required placeholder="塗料・材料名（例：ファインSi）" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
+                <!-- Add Material Form (メーカー欄を塗料・材料名の上に配置) -->
+                <form onsubmit="addMaterial(event)" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-5 space-y-3.5 shadow-xl">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">メーカー名</label>
+                            <input id="mat-maker" type="text" placeholder="例：日本ペイント / エスケー化研 / 関西ペイント" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-2.5 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">塗料・材料名 <span class="text-gold-400">*</span></label>
+                            <input id="mat-name" type="text" required placeholder="例：ファインSi / パーフェクトトップ" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-2.5 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
+                        </div>
                     </div>
-                    <div class="sm:col-span-3">
-                        <input id="mat-color" type="text" placeholder="色番号（例：N-90 / 22-90B）" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <input id="mat-weight" type="number" step="0.1" required placeholder="残量 (kg)" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-3 text-white text-sm font-bold focus:outline-none focus:border-gold-500">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <button type="submit" class="w-full h-full bg-gradient-to-r from-gold-400 to-gold-600 hover:from-gold-300 hover:to-gold-500 text-dark-950 font-black rounded-xl py-3 text-sm transition whitespace-nowrap">
-                            追加
-                        </button>
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-6">
+                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">色番号・カラー</label>
+                            <input id="mat-color" type="text" placeholder="例：N-90 / 22-90B / 艶消し黒" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-2.5 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div class="sm:col-span-3">
+                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">残量 (kg) <span class="text-gold-400">*</span></label>
+                            <input id="mat-weight" type="number" step="0.1" required placeholder="例：14.5" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2.5 text-white text-sm font-bold focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div class="sm:col-span-3 flex items-end">
+                            <button type="submit" class="w-full bg-gradient-to-r from-gold-400 to-gold-600 hover:from-gold-300 hover:to-gold-500 text-dark-950 font-black rounded-xl py-2.5 text-sm transition whitespace-nowrap">
+                                材料を追加
+                            </button>
+                        </div>
                     </div>
                 </form>
 
@@ -283,7 +294,7 @@
                         <span class="text-xs font-extrabold tracking-widest text-gold-400 uppercase">Client &amp; Construction</span>
                         <h2 class="text-2xl md:text-3xl font-black text-white tracking-tight mt-0.5">顧客・施工管理</h2>
                     </div>
-                    <p class="text-xs text-gray-400">施工ステータス・使用材料の選択・現場写真アルバム管理</p>
+                    <p class="text-xs text-gray-400">日程・工事メモの編集、使用材料の選択、現場写真アルバム管理</p>
                 </div>
 
                 <div id="customers-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
@@ -357,6 +368,15 @@
 
         function getStorageKey() {
             return `paint_pro_sync_${currentGroup}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
         }
 
         function showToast(msg) {
@@ -554,6 +574,25 @@
             }
         }
 
+        // Save edited dates and notes in Customer Management tab
+        function saveCustomerDetails(id) {
+            const p = appState.projects.find(x => x.id === id);
+            if (!p) return;
+
+            const estInput = document.getElementById(`edit-est-${id}`);
+            const startInput = document.getElementById(`edit-start-${id}`);
+            const endInput = document.getElementById(`edit-end-${id}`);
+            const notesInput = document.getElementById(`edit-notes-${id}`);
+
+            if (estInput) p.estDate = estInput.value;
+            if (startInput) p.startDate = startInput.value;
+            if (endInput) p.endDate = endInput.value;
+            if (notesInput) p.notes = notesInput.value.trim();
+
+            saveData();
+            showToast('日程・工事メモを保存しました');
+        }
+
         // Assign registered material to customer project
         function assignMaterialToProject(projectId) {
             const select = document.getElementById(`mat-select-${projectId}`);
@@ -574,6 +613,7 @@
 
             proj.assignedMaterials.push({
                 id: mat.id,
+                maker: mat.maker || '',
                 name: mat.name,
                 color: mat.color
             });
@@ -618,6 +658,7 @@
         // Materials Logic
         function addMaterial(e) {
             e.preventDefault();
+            const maker = document.getElementById('mat-maker').value.trim();
             const name = document.getElementById('mat-name').value.trim();
             const color = document.getElementById('mat-color').value.trim();
             const weight = parseFloat(document.getElementById('mat-weight').value);
@@ -625,7 +666,8 @@
 
             appState.materials.unshift({
                 id: Date.now().toString(),
-                name,
+                maker: maker,
+                name: name,
                 color: color || '標準色',
                 weight: Math.max(0, Number(weight.toFixed(1)))
             });
@@ -683,9 +725,9 @@
 
         function exportCSV() {
             if (appState.materials.length === 0) return showToast('出力する在庫データがありません');
-            let csv = '\uFEFF材料名,色番号,残量(kg)\n';
+            let csv = '\uFEFFメーカー,材料名,色番号,残量(kg)\n';
             appState.materials.forEach(m => {
-                csv += `"${m.name}","${m.color}",${m.weight}\n`;
+                csv += `"${m.maker || ''}","${m.name}","${m.color}",${m.weight}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -700,7 +742,8 @@
             if (appState.materials.length === 0) return showToast('コピーする在庫データがありません');
             const lines = ['【Paint Management Pro 在庫一覧】'];
             appState.materials.forEach(m => {
-                lines.push(`・${m.name} [${m.color}] : ${m.weight} kg`);
+                const makerPrefix = m.maker ? `${m.maker} / ` : '';
+                lines.push(`・${makerPrefix}${m.name} [${m.color}] : ${m.weight} kg`);
             });
             navigator.clipboard.writeText(lines.join('\n')).then(() => {
                 showToast('在庫リストをクリップボードにコピーしました');
@@ -728,21 +771,21 @@
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-2xl p-5 space-y-3 transition shadow-lg">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <span class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${getStatusBadgeClass(p.status)} mb-1.5">${p.status || '施工予定'}</span>
-                                <h4 class="font-black text-white text-base tracking-tight break-words">${p.name}</h4>
-                                ${p.address ? `<p class="text-xs text-gray-400 mt-0.5 break-words">${p.address}</p>` : ''}
+                                <span class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${getStatusBadgeClass(p.status)} mb-1.5">${escapeHtml(p.status || '施工予定')}</span>
+                                <h4 class="font-black text-white text-base tracking-tight break-words">${escapeHtml(p.name)}</h4>
+                                ${p.address ? `<p class="text-xs text-gray-400 mt-0.5 break-words">${escapeHtml(p.address)}</p>` : ''}
                             </div>
                             <button onclick="deleteProject('${p.id}')" class="flex-shrink-0 text-gray-500 hover:text-red-400 text-xs font-bold px-2 py-1 rounded transition">削除</button>
                         </div>
                         <div class="text-xs text-gray-300 bg-dark-950/90 border border-dark-800 rounded-xl p-3 space-y-2">
                             <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-400">
-                                <span>見積: <strong class="text-gray-200">${p.estDate || '-'}</strong></span>
-                                <span>着工: <strong class="text-gray-200">${p.startDate || '-'}</strong></span>
-                                <span>完工: <strong class="text-gray-200">${p.endDate || '-'}</strong></span>
+                                <span>見積: <strong class="text-gray-200">${escapeHtml(p.estDate) || '-'}</strong></span>
+                                <span>着工: <strong class="text-gray-200">${escapeHtml(p.startDate) || '-'}</strong></span>
+                                <span>完工: <strong class="text-gray-200">${escapeHtml(p.endDate) || '-'}</strong></span>
                             </div>
                             ${assigned.length > 0 ? `
                                 <div class="pt-1.5 border-t border-dark-800 flex flex-wrap gap-1.5">
-                                    ${assigned.map(m => `<span class="text-[11px] font-bold bg-dark-850 text-gold-400 border border-dark-700 px-2 py-0.5 rounded">${m.name} (${m.color})</span>`).join('')}
+                                    ${assigned.map(m => `<span class="text-[11px] font-bold bg-dark-850 text-gold-400 border border-dark-700 px-2 py-0.5 rounded">${m.maker ? escapeHtml(m.maker) + ' ' : ''}${escapeHtml(m.name)} (${escapeHtml(m.color)})</span>`).join('')}
                                 </div>
                             ` : ''}
                         </div>
@@ -766,8 +809,9 @@
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-2xl p-5 flex flex-col justify-between gap-4 transition shadow-lg">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
-                                <h4 class="font-black text-white text-base tracking-tight break-words">${m.name}</h4>
-                                <span class="inline-block mt-1.5 text-[11px] font-extrabold text-gold-400 bg-dark-950 px-2.5 py-0.5 rounded-md border border-dark-700">COLOR: ${m.color}</span>
+                                ${m.maker ? `<span class="text-[11px] font-bold text-gray-400 tracking-wide block mb-0.5 truncate">${escapeHtml(m.maker)}</span>` : ''}
+                                <h4 class="font-black text-white text-base tracking-tight break-words">${escapeHtml(m.name)}</h4>
+                                <span class="inline-block mt-1.5 text-[11px] font-extrabold text-gold-400 bg-dark-950 px-2.5 py-0.5 rounded-md border border-dark-700">COLOR: ${escapeHtml(m.color)}</span>
                             </div>
                             <button onclick="deleteMaterial('${m.id}')" class="flex-shrink-0 text-gray-500 hover:text-red-400 text-xs font-bold">削除</button>
                         </div>
@@ -800,7 +844,10 @@
                 cGrid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 text-xs font-bold uppercase tracking-wider bg-dark-900/60 rounded-2xl border border-dark-800">「案件登録」タブから現場を登録するとここに表示されます</div>';
             } else {
                 const materialOptionsHtml = appState.materials.length > 0
-                    ? `<option value="">登録済み材料から選択...</option>` + appState.materials.map(m => `<option value="${m.id}">${m.name}（${m.color} / 残${m.weight}kg）</option>`).join('')
+                    ? `<option value="">登録済み材料から選択...</option>` + appState.materials.map(m => {
+                        const labelMaker = m.maker ? `${m.maker} / ` : '';
+                        return `<option value="${m.id}">${escapeHtml(labelMaker + m.name)}（${escapeHtml(m.color)} / 残${m.weight}kg）</option>`;
+                    }).join('')
                     : `<option value="">※先に材料を登録してください</option>`;
 
                 cGrid.innerHTML = appState.projects.map(p => {
@@ -809,8 +856,8 @@
                     <div class="bg-dark-900 border border-dark-700/90 rounded-2xl p-5 space-y-4 shadow-lg overflow-hidden">
                         <div class="flex items-start justify-between gap-3 border-b border-dark-800 pb-3">
                             <div class="min-w-0">
-                                <h4 class="font-black text-white text-base tracking-tight break-words">${p.name}</h4>
-                                <p class="text-xs text-gray-400 mt-0.5 break-words">${p.address || '住所未登録'}</p>
+                                <h4 class="font-black text-white text-base tracking-tight break-words">${escapeHtml(p.name)}</h4>
+                                <p class="text-xs text-gray-400 mt-0.5 break-words">${escapeHtml(p.address) || '住所未登録'}</p>
                             </div>
                             <select onchange="updateProjectStatus('${p.id}', this.value)" class="flex-shrink-0 bg-dark-950 border border-dark-700 rounded-xl px-3 py-1.5 text-xs font-extrabold text-gold-400 focus:outline-none focus:border-gold-500">
                                 <option value="見積中" ${p.status==='見積中'?'selected':''}>見積中</option>
@@ -820,13 +867,37 @@
                             </select>
                         </div>
 
-                        <div class="flex flex-wrap justify-between gap-2 text-[11px] text-gray-400 bg-dark-950/90 border border-dark-800 rounded-xl px-3.5 py-2.5">
-                            <span>見積: <strong class="text-gray-200">${p.estDate || '-'}</strong></span>
-                            <span>着工: <strong class="text-gray-200">${p.startDate || '-'}</strong></span>
-                            <span>完工予定: <strong class="text-gray-200">${p.endDate || '-'}</strong></span>
+                        <!-- 日程・工事内容メモの編集エリア -->
+                        <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider">工程日程・工事内容メモ</span>
+                                <button type="button" onclick="saveCustomerDetails('${p.id}')" class="bg-dark-800 hover:bg-gold-500 hover:text-dark-950 text-gold-400 border border-gold-500/40 font-extrabold text-[11px] px-3 py-1 rounded-lg transition whitespace-nowrap">
+                                    変更を保存
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">見積日</label>
+                                    <input id="edit-est-${p.id}" type="date" value="${escapeHtml(p.estDate || '')}" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">着工日</label>
+                                    <input id="edit-start-${p.id}" type="date" value="${escapeHtml(p.startDate || '')}" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 mb-1">完工予定日</label>
+                                    <input id="edit-end-${p.id}" type="date" value="${escapeHtml(p.endDate || '')}" class="w-full bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-gold-500">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 mb-1">工事内容・現場メモ</label>
+                                <textarea id="edit-notes-${p.id}" rows="2" placeholder="工事内容・注意事項・工程メモを入力..." class="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-xs text-gray-200 leading-relaxed focus:outline-none focus:border-gold-500">${escapeHtml(p.notes || '')}</textarea>
+                            </div>
                         </div>
 
-                        <!-- 使用材料の選択・割り当てエリア（枠内に収まるレイアウト） -->
+                        <!-- 使用材料の選択・割り当てエリア -->
                         <div class="bg-dark-950/90 border border-dark-800 rounded-xl p-3.5 space-y-2.5">
                             <span class="text-xs font-extrabold text-gray-300 uppercase tracking-wider block">使用材料・カラー選択</span>
                             <div class="flex items-center gap-2 w-full">
@@ -842,15 +913,13 @@
                                     ? '<span class="text-[11px] text-gray-600">使用材料はまだ選択されていません</span>'
                                     : assigned.map((am, idx) => `
                                         <span class="inline-flex items-center gap-1.5 max-w-full bg-dark-850 border border-gold-500/40 text-gold-400 text-xs font-bold px-2.5 py-1 rounded-lg">
-                                            <span class="truncate">${am.name}［${am.color}］</span>
+                                            <span class="truncate">${am.maker ? escapeHtml(am.maker) + ' / ' : ''}${escapeHtml(am.name)}［${escapeHtml(am.color)}］</span>
                                             <button type="button" onclick="removeAssignedMaterial('${p.id}', ${idx})" class="flex-shrink-0 text-gray-400 hover:text-red-400 font-black ml-0.5">×</button>
                                         </span>
                                     `).join('')
                                 }
                             </div>
                         </div>
-
-                        ${p.notes ? `<div class="text-xs text-gray-300 bg-dark-850 border border-dark-700/70 p-3 rounded-xl leading-relaxed break-words">${p.notes}</div>` : ''}
 
                         <div class="pt-1">
                             <div class="flex items-center justify-between mb-2.5">
