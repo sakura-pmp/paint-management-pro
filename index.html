@@ -154,7 +154,7 @@
                         <span class="text-xs font-extrabold tracking-widest text-gold-400 uppercase">Project Registration</span>
                         <h2 class="text-2xl md:text-3xl font-black text-white tracking-tight mt-0.5">案件登録</h2>
                     </div>
-                    <p class="text-xs text-gray-400">新規現場の顧客情報・工程日程・使用塗料仕様を登録</p>
+                    <p class="text-xs text-gray-400">新規現場の顧客情報・工程日程・使用塗料・現場写真を登録</p>
                 </div>
 
                 <form id="project-form" onsubmit="addProject(event)" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-5 md:p-7 space-y-5 shadow-2xl">
@@ -193,6 +193,25 @@
                             <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">指定色番号・カラー（自由記述）</label>
                             <input id="proj-color" type="text" placeholder="例：ND-105 / 22-90B 艶消し" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-gold-500 transition">
                         </div>
+                    </div>
+
+                    <!-- 現場写真登録エリア -->
+                    <div class="bg-dark-850/70 border border-dark-700/80 rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 uppercase tracking-wider">現場写真の添付（現地調査・施工前など）</label>
+                                <span class="text-[11px] text-gray-500">複数枚選択可能（登録後、現場アルバムへ自動反映）</span>
+                            </div>
+                            <label class="cursor-pointer bg-dark-800 hover:bg-dark-700 text-gold-400 border border-gold-500/40 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>写真を選択</span>
+                                <input id="proj-photos-input" type="file" accept="image/*" multiple class="hidden" onchange="handleNewProjectPhotos(this)">
+                            </label>
+                        </div>
+                        <div id="new-proj-photo-preview" class="flex gap-2.5 overflow-x-auto no-scrollbar empty:hidden pt-1"></div>
                     </div>
 
                     <div>
@@ -333,6 +352,7 @@
         let currentGroup = localStorage.getItem('paint_pro_group') || 'hachioji-paint';
         let unsubscribeFirestore = null;
         let appState = { projects: [], materials: [] };
+        let pendingProjectPhotos = [];
 
         document.getElementById('group-input').value = currentGroup;
         document.getElementById('sidebar-group-label').textContent = currentGroup;
@@ -454,6 +474,54 @@
             showToast(`グループ「${currentGroup}」へ切り替えました`);
         }
 
+        // New Project Photo Selection & Compression
+        function compressImageFile(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const maxW = 800;
+                        const scale = Math.min(1, maxW / img.width);
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+                        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.72));
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleNewProjectPhotos(input) {
+            const files = Array.from(input.files || []);
+            if (!files.length) return;
+            for (const file of files) {
+                const compressed = await compressImageFile(file);
+                pendingProjectPhotos.push(compressed);
+            }
+            input.value = '';
+            renderNewProjectPhotoPreviews();
+            showToast(`${files.length}枚の写真を添付しました`);
+        }
+
+        function removePendingPhoto(idx) {
+            pendingProjectPhotos.splice(idx, 1);
+            renderNewProjectPhotoPreviews();
+        }
+
+        function renderNewProjectPhotoPreviews() {
+            const box = document.getElementById('new-proj-photo-preview');
+            box.innerHTML = pendingProjectPhotos.map((src, idx) => `
+                <div class="relative flex-shrink-0 group">
+                    <img src="${src}" onclick="openPhotoModal('${src}')" class="w-20 h-20 object-cover rounded-xl border border-dark-700 cursor-pointer">
+                    <button type="button" onclick="removePendingPhoto(${idx})" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center shadow">×</button>
+                </div>
+            `).join('');
+        }
+
         // Projects Logic
         function addProject(e) {
             e.preventDefault();
@@ -471,10 +539,12 @@
                 color: document.getElementById('proj-color').value.trim(),
                 notes: document.getElementById('proj-notes').value.trim(),
                 status: '施工予定',
-                photos: []
+                photos: [...pendingProjectPhotos]
             };
 
             appState.projects.unshift(newProj);
+            pendingProjectPhotos = [];
+            renderNewProjectPhotoPreviews();
             document.getElementById('project-form').reset();
             saveData();
             showToast('新規案件を登録しました');
@@ -496,31 +566,19 @@
             }
         }
 
-        function handlePhotoUpload(id, input) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const maxW = 800;
-                    const scale = Math.min(1, maxW / img.width);
-                    canvas.width = img.width * scale;
-                    canvas.height = img.height * scale;
-                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const compressed = canvas.toDataURL('image/jpeg', 0.72);
-                    const p = appState.projects.find(x => x.id === id);
-                    if (p) {
-                        if (!p.photos) p.photos = [];
-                        p.photos.push(compressed);
-                        saveData();
-                        showToast('現場写真をアルバムに追加しました');
-                    }
-                };
-                img.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
+        async function handlePhotoUpload(id, input) {
+            const files = Array.from(input.files || []);
+            if (!files.length) return;
+            const p = appState.projects.find(x => x.id === id);
+            if (!p) return;
+            if (!p.photos) p.photos = [];
+            for (const file of files) {
+                const compressed = await compressImageFile(file);
+                p.photos.push(compressed);
+            }
+            input.value = '';
+            saveData();
+            showToast('現場写真をアルバムに追加しました');
         }
 
         function openPhotoModal(src) {
@@ -664,6 +722,11 @@
                                 <span>完工: <strong class="text-gray-200">${p.endDate || '-'}</strong></span>
                             </div>
                         </div>
+                        ${(p.photos && p.photos.length > 0) ? `
+                            <div class="flex gap-2 overflow-x-auto no-scrollbar pt-1">
+                                ${p.photos.map(src => `<img src="${src}" onclick="openPhotoModal('${src}')" class="w-14 h-14 object-cover rounded-lg border border-dark-700 hover:border-gold-400 cursor-pointer flex-shrink-0">`).join('')}
+                            </div>
+                        ` : ''}
                     </div>
                 `).join('');
             }
@@ -749,7 +812,7 @@
                                 <span class="text-xs font-extrabold text-gray-400 uppercase tracking-wider">現場アルバム (${(p.photos||[]).length})</span>
                                 <label class="cursor-pointer bg-dark-850 hover:bg-dark-800 text-gold-400 text-xs font-bold px-3 py-1.5 rounded-xl border border-gold-500/40 transition">
                                     写真を追加
-                                    <input type="file" accept="image/*" class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
+                                    <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload('${p.id}', this)">
                                 </label>
                             </div>
                             <div class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
