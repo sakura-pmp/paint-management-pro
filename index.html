@@ -260,6 +260,28 @@
                     </div>
                 </div>
 
+                <!-- Bluetoothデジタルはかり ライブ計測パネル -->
+                <div id="ble-live-bar" class="bg-dark-900 border border-dark-700/90 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                    <div class="flex items-center gap-2.5">
+                        <span id="ble-live-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600"></span>
+                        <div>
+                            <div class="text-[11px] font-bold text-gray-400">Bluetoothデジタルはかり 計測値</div>
+                            <div id="ble-device-name" class="text-[11px] font-bold text-gray-500">未接続（はかり接続後に各材料の「はかり反映」ボタンで上書き可能）</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 ml-auto">
+                        <div class="flex items-baseline gap-1 bg-dark-950 border border-dark-700 rounded-xl px-3 py-1.5">
+                            <span class="text-[10px] font-bold text-gray-500 mr-1">現在値:</span>
+                            <input id="ble-live-weight-input" type="number" step="0.1" placeholder="--.-" oninput="onManualScaleInput(this.value)" class="w-16 bg-transparent text-right text-lg font-black text-emerald-400 focus:outline-none">
+                            <span class="text-xs font-extrabold text-gray-400">kg</span>
+                        </div>
+                        <button type="button" onclick="applyBleWeightToNewForm()" title="新規登録フォームの残量欄へ入力" class="bg-dark-850 hover:bg-dark-800 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-2.5 py-2 rounded-xl transition whitespace-nowrap">
+                            新規欄へ入力
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Add Material Form -->
                 <form onsubmit="addMaterial(event)" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-4 md:p-5 space-y-3 shadow-xl">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -413,6 +435,10 @@
         let pendingProjectPhotos = [];
         let expandedCustomerIds = new Set();
         let activeModalContext = { projectId: null, photoIdx: null };
+
+        // BLE Scale State
+        let bleDevice = null;
+        let bleLatestWeightKg = null;
 
         function createInitialSampleProjects() {
             return [
@@ -1134,14 +1160,134 @@
             showToast('材料を削除しました');
         }
 
+        // ==========================================
+        // Bluetooth デジタルはかり連携＆重量反映
+        // ==========================================
+        function setBleLiveWeight(weightKg) {
+            const num = parseFloat(weightKg);
+            if (isNaN(num) || num < 0) return;
+            bleLatestWeightKg = Number(num.toFixed(1));
+            const input = document.getElementById('ble-live-weight-input');
+            if (input && document.activeElement !== input) {
+                input.value = bleLatestWeightKg.toFixed(1);
+            }
+        }
+
+        function onManualScaleInput(val) {
+            const num = parseFloat(val);
+            if (!isNaN(num) && num >= 0) {
+                bleLatestWeightKg = Number(num.toFixed(1));
+            } else {
+                bleLatestWeightKg = null;
+            }
+        }
+
+        function applyBleWeightToMaterial(id) {
+            if (bleLatestWeightKg === null || isNaN(bleLatestWeightKg)) {
+                const input = document.getElementById('ble-live-weight-input');
+                if (input) input.focus();
+                return showToast('はかりを接続するか、上の計測値欄に重さ(kg)を入力してください');
+            }
+            const m = appState.materials.find(x => x.id === id);
+            if (!m) return;
+            m.weight = Math.max(0, Number(bleLatestWeightKg.toFixed(1)));
+            saveMaterialsOnly();
+            showToast(`「${m.name}」の残量にはかり計測値（${m.weight} kg）を反映しました`);
+        }
+
+        function applyBleWeightToNewForm() {
+            if (bleLatestWeightKg === null || isNaN(bleLatestWeightKg)) {
+                const input = document.getElementById('ble-live-weight-input');
+                if (input) input.focus();
+                return showToast('反映する計測値(kg)がありません');
+            }
+            const weightField = document.getElementById('mat-weight');
+            if (weightField) {
+                weightField.value = bleLatestWeightKg.toFixed(1);
+                showToast(`新規材料の残量欄に ${bleLatestWeightKg.toFixed(1)} kg を入力しました`);
+            }
+        }
+
+        function parseBleScaleDataView(dataView) {
+            if (!dataView || dataView.byteLength < 2) return null;
+            try {
+                // 1) 標準 Bluetooth Weight Scale Measurement (0x2A9D)
+                if (dataView.byteLength >= 3) {
+                    const flags = dataView.getUint8(0);
+                    const isImperial = (flags & 0x01) !== 0;
+                    const rawVal = dataView.getUint16(1, true);
+                    if (rawVal > 0 && rawVal < 60000) {
+                        const kg = isImperial ? (rawVal * 0.01 * 0.453592) : (rawVal * 0.005);
+                        if (kg >= 0 && kg <= 200) return kg;
+                    }
+                }
+                // 2) UTF-8 テキスト形式（例: "ST,GS,  12.45kg" や "12.4"）
+                const decoder = new TextDecoder('utf-8');
+                const str = decoder.decode(dataView.buffer);
+                const match = str.match(/(\d+(?:\.\d+)?)\s*(kg|g)?/i);
+                if (match) {
+                    let val = parseFloat(match[1]);
+                    const unit = (match[2] || '').toLowerCase();
+                    if (unit === 'g' || (!unit && val > 200)) {
+                        val = val / 1000;
+                    }
+                    if (!isNaN(val) && val >= 0 && val <= 200) return val;
+                }
+            } catch (err) {
+                console.warn('BLE parse warning:', err);
+            }
+            return null;
+        }
+
         async function connectBLE() {
             if (!navigator.bluetooth) {
-                return showToast('このブラウザはWeb Bluetooth非対応です');
+                return showToast('このブラウザはWeb Bluetooth非対応です（Chrome / Edge推奨）');
             }
             try {
-                const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-                document.getElementById('ble-text').textContent = device.name || 'スケール接続済';
-                showToast('BLEデジタルスケールと接続しました');
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [0x181D, '0000181d-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb', '0000fff0-0000-1000-8000-00805f9b34fb']
+                });
+                bleDevice = device;
+                const devName = device.name || 'BLEデジタルはかり';
+                document.getElementById('ble-text').textContent = `${devName} 接続済`;
+                document.getElementById('ble-device-name').textContent = `接続中: ${devName}（各材料の「はかり反映」ボタンで即反映）`;
+                document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-emerald-400';
+                document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+
+                device.addEventListener('gattserverdisconnected', () => {
+                    document.getElementById('ble-text').textContent = 'BLEデジタルはかり接続';
+                    document.getElementById('ble-device-name').textContent = '切断されました（再接続してください）';
+                    document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-gray-500';
+                    document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-gray-600';
+                    showToast('BLEデジタルはかりが切断されました');
+                });
+
+                const server = await device.gatt.connect();
+                const services = await server.getPrimaryServices();
+                let subscribed = false;
+
+                for (const service of services) {
+                    try {
+                        const chars = await service.getCharacteristics();
+                        for (const ch of chars) {
+                            if (ch.properties.notify || ch.properties.indicate) {
+                                await ch.startNotifications();
+                                ch.addEventListener('characteristicvaluechanged', (ev) => {
+                                    const kg = parseBleScaleDataView(ev.target.value);
+                                    if (kg !== null) setBleLiveWeight(kg);
+                                });
+                                subscribed = true;
+                            }
+                        }
+                    } catch (e) {
+                        // skip restricted service
+                    }
+                }
+
+                showToast(subscribed
+                    ? `${devName} に接続し、リアルタイム計測を開始しました`
+                    : `${devName} に接続しました`);
             } catch (e) {
                 showToast('Bluetooth接続をキャンセルしました');
             }
@@ -1244,7 +1390,7 @@
                 `).join('');
             }
 
-            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え対応）
+            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋BLEはかり反映対応）
             const matBadge = document.getElementById('material-count-badge');
             if (matBadge) matBadge.textContent = `${appState.materials.length} 件`;
 
@@ -1279,7 +1425,7 @@
                     const isLowStock = Number(m.weight) <= 2.0;
                     return `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-xl px-3.5 py-2.5 transition shadow-md">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
                             <!-- 左側：メーカー・材料名・色番号・残量バー -->
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -1292,8 +1438,15 @@
                                 </div>
                             </div>
 
-                            <!-- 右側：数量調整・削除 -->
-                            <div class="flex items-center justify-between sm:justify-end gap-1.5 flex-shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-dark-800/80">
+                            <!-- 右側：はかり反映・数量調整・削除 -->
+                            <div class="flex items-center justify-between lg:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 lg:pt-0 border-t lg:border-t-0 border-dark-800/80">
+                                <button type="button" onclick="applyBleWeightToMaterial('${m.id}')" title="Bluetoothはかりの計測値(${bleLatestWeightKg !== null ? bleLatestWeightKg + 'kg' : '未計測'})を残量へ反映" class="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0" />
+                                    </svg>
+                                    <span>はかり反映</span>
+                                </button>
+
                                 <div class="flex items-center gap-1 bg-dark-950 border border-dark-800 rounded-lg p-1">
                                     <button type="button" onclick="adjustWeight('${m.id}', -0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">-0.5</button>
                                     <div class="flex items-baseline gap-0.5 px-1">
@@ -1302,6 +1455,7 @@
                                     </div>
                                     <button type="button" onclick="adjustWeight('${m.id}', 0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">+0.5</button>
                                 </div>
+
                                 <button type="button" onclick="deleteMaterial('${m.id}')" title="削除" class="text-gray-500 hover:text-red-400 text-[11px] font-bold px-2 py-1.5 rounded-lg hover:bg-dark-850 transition whitespace-nowrap">削除</button>
                             </div>
                         </div>
