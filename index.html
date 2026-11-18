@@ -260,25 +260,50 @@
                     </div>
                 </div>
 
-                <!-- Bluetoothデジタルはかり ライブ計測パネル -->
-                <div id="ble-live-bar" class="bg-dark-900 border border-dark-700/90 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
-                    <div class="flex items-center gap-2.5">
-                        <span id="ble-live-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600"></span>
-                        <div>
-                            <div class="text-[11px] font-bold text-gray-400">Bluetoothデジタルはかり 計測値</div>
-                            <div id="ble-device-name" class="text-[11px] font-bold text-gray-500">未接続（はかり接続後に各材料の「はかり反映」ボタンで上書き可能）</div>
+                <!-- Bluetoothデジタルはかり ライブ計測＆缶風袋差し引きパネル -->
+                <div id="ble-live-bar" class="bg-dark-900 border border-dark-700/90 rounded-2xl px-4 py-3.5 space-y-3 shadow-lg">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <span id="ble-live-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600"></span>
+                            <div>
+                                <div class="text-[11px] font-bold text-gray-300">Bluetoothデジタルはかり 計測値（缶の重さ自動差し引き対応）</div>
+                                <div id="ble-device-name" class="text-[11px] font-bold text-gray-500">未接続（缶の種類を選ぶと計測値から缶の重さを自動で引いて反映します）</div>
+                            </div>
+                        </div>
+
+                        <!-- 正味重量プレビュー -->
+                        <div class="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-1 ml-auto">
+                            <span class="text-[11px] font-bold text-emerald-300">正味(缶引き後):</span>
+                            <span id="ble-net-weight-display" class="text-base font-black text-emerald-400">--.-</span>
+                            <span class="text-xs font-extrabold text-emerald-400">kg</span>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2 ml-auto">
-                        <div class="flex items-baseline gap-1 bg-dark-950 border border-dark-700 rounded-xl px-3 py-1.5">
-                            <span class="text-[10px] font-bold text-gray-500 mr-1">現在値:</span>
-                            <input id="ble-live-weight-input" type="number" step="0.1" placeholder="--.-" oninput="onManualScaleInput(this.value)" class="w-16 bg-transparent text-right text-lg font-black text-emerald-400 focus:outline-none">
-                            <span class="text-xs font-extrabold text-gray-400">kg</span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-dark-800/80">
+                        <!-- 缶の種類（風袋）選択 -->
+                        <div class="flex items-center gap-1.5 bg-dark-950 border border-dark-700 rounded-xl px-2.5 py-1.5 flex-1 sm:flex-initial">
+                            <span class="text-[11px] font-bold text-gold-400 whitespace-nowrap">差し引く缶:</span>
+                            <select id="ble-can-tare" onchange="updateBleNetWeightPreview()" class="bg-transparent text-xs font-extrabold text-white focus:outline-none w-full">
+                                <option value="0" class="bg-dark-900 text-white">なし（0kg / そのまま）</option>
+                                <option value="1.1" class="bg-dark-900 text-white">20L缶（-1.1kg）</option>
+                                <option value="0.95" class="bg-dark-900 text-white">10L缶（-0.95kg）</option>
+                                <option value="0.38" class="bg-dark-900 text-white">4L丸缶（-0.38kg）</option>
+                                <option value="0.35" class="bg-dark-900 text-white">4L丸缶・軽量（-0.35kg）</option>
+                                <option value="0.2" class="bg-dark-900 text-white">1.5L缶（-0.2kg）</option>
+                            </select>
                         </div>
-                        <button type="button" onclick="applyBleWeightToNewForm()" title="新規登録フォームの残量欄へ入力" class="bg-dark-850 hover:bg-dark-800 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-2.5 py-2 rounded-xl transition whitespace-nowrap">
-                            新規欄へ入力
-                        </button>
+
+                        <!-- はかり総重量＆新規フォーム反映 -->
+                        <div class="flex items-center gap-2 ml-auto">
+                            <div class="flex items-baseline gap-1 bg-dark-950 border border-dark-700 rounded-xl px-3 py-1.5">
+                                <span class="text-[10px] font-bold text-gray-500 mr-1">計測総重量:</span>
+                                <input id="ble-live-weight-input" type="number" step="0.01" placeholder="--.-" oninput="onManualScaleInput(this.value)" class="w-16 bg-transparent text-right text-base font-black text-white focus:outline-none">
+                                <span class="text-xs font-extrabold text-gray-400">kg</span>
+                            </div>
+                            <button type="button" onclick="applyBleWeightToNewForm()" title="缶の重さを引いた正味重量を新規登録欄へ入力" class="bg-dark-850 hover:bg-dark-800 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-2.5 py-2 rounded-xl transition whitespace-nowrap">
+                                新規欄へ入力
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -295,17 +320,31 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                        <div class="sm:col-span-6">
+                        <div class="sm:col-span-4">
                             <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">色番号・カラー</label>
                             <input id="mat-color" type="text" placeholder="例：N-90 / 22-90B / 艶消し黒" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2 text-white text-sm font-medium focus:outline-none focus:border-gold-500">
                         </div>
                         <div class="sm:col-span-3">
-                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">残量 (kg) <span class="text-gold-400">*</span></label>
-                            <input id="mat-weight" type="number" step="0.1" required placeholder="例：14.5" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2 text-white text-sm font-bold focus:outline-none focus:border-gold-500">
+                            <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">缶の重さ差し引き</label>
+                            <select id="mat-form-can-tare" onchange="updateNewFormNetPreview()" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-gold-400 text-xs font-extrabold focus:outline-none focus:border-gold-500 h-[38px]">
+                                <option value="0">なし（正味そのまま）</option>
+                                <option value="1.1">20L缶（-1.1kg）</option>
+                                <option value="0.95">10L缶（-0.95kg）</option>
+                                <option value="0.38">4L丸缶（-0.38kg）</option>
+                                <option value="0.35">4L丸缶・軽量（-0.35kg）</option>
+                                <option value="0.2">1.5L缶（-0.2kg）</option>
+                            </select>
                         </div>
-                        <div class="sm:col-span-3 flex items-end">
+                        <div class="sm:col-span-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider">重さ (kg) <span class="text-gold-400">*</span></label>
+                                <span id="mat-form-net-hint" class="text-[10px] font-bold text-emerald-400"></span>
+                            </div>
+                            <input id="mat-weight" type="number" step="0.01" required oninput="updateNewFormNetPreview()" placeholder="例：14.5" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2 text-white text-sm font-bold focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div class="sm:col-span-2 flex items-end">
                             <button type="submit" class="w-full bg-gradient-to-r from-gold-400 to-gold-600 hover:from-gold-300 hover:to-gold-500 text-dark-950 font-black rounded-xl py-2 text-sm transition whitespace-nowrap">
-                                材料を追加
+                                追加
                             </button>
                         </div>
                     </div>
@@ -424,6 +463,15 @@
         const MAX_PHOTOS_PER_PROJECT = 4;
         const MAX_PROJECT_BYTES = 920000;
 
+        const CAN_TARE_OPTIONS = [
+            { label: 'なし（0kg）', tare: 0 },
+            { label: '20L缶（-1.1kg）', tare: 1.1 },
+            { label: '10L缶（-0.95kg）', tare: 0.95 },
+            { label: '4L丸缶（-0.38kg）', tare: 0.38 },
+            { label: '4L丸缶・軽量（-0.35kg）', tare: 0.35 },
+            { label: '1.5L缶（-0.2kg）', tare: 0.2 }
+        ];
+
         let db = null;
         let currentTab = 'projects';
         let currentGroup = localStorage.getItem('paint_pro_group') || '';
@@ -439,6 +487,11 @@
         // BLE Scale State
         let bleDevice = null;
         let bleLatestWeightKg = null;
+
+        function formatWeightKg(val) {
+            const num = Math.max(0, Number(val) || 0);
+            return Math.round(num * 100) / 100;
+        }
 
         function createInitialSampleProjects() {
             return [
@@ -507,7 +560,7 @@
             const t = document.getElementById('toast');
             t.textContent = msg;
             t.classList.remove('translate-x-full', 'opacity-0');
-            setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 2800);
+            setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 3000);
         }
 
         function switchTab(tabId) {
@@ -1114,14 +1167,33 @@
             document.getElementById('modal-photo-counter').textContent = '';
         }
 
+        // ==========================================
+        // 材料・在庫管理（缶の重さ差し引き対応）
+        // ==========================================
+        function updateNewFormNetPreview() {
+            const rawVal = parseFloat(document.getElementById('mat-weight')?.value);
+            const tareVal = parseFloat(document.getElementById('mat-form-can-tare')?.value) || 0;
+            const hintEl = document.getElementById('mat-form-net-hint');
+            if (!hintEl) return;
+
+            if (!isNaN(rawVal) && tareVal > 0) {
+                const net = formatWeightKg(rawVal - tareVal);
+                hintEl.textContent = `正味: ${net}kg`;
+            } else {
+                hintEl.textContent = '';
+            }
+        }
+
         function addMaterial(e) {
             e.preventDefault();
             const maker = document.getElementById('mat-maker').value.trim();
             const name = document.getElementById('mat-name').value.trim();
             const color = document.getElementById('mat-color').value.trim();
-            const weight = parseFloat(document.getElementById('mat-weight').value);
-            if (!name || isNaN(weight)) return;
+            const rawWeight = parseFloat(document.getElementById('mat-weight').value);
+            const tareWeight = parseFloat(document.getElementById('mat-form-can-tare')?.value) || 0;
+            if (!name || isNaN(rawWeight)) return;
 
+            const netWeight = formatWeightKg(rawWeight - tareWeight);
             const now = Date.now();
             appState.materials.unshift({
                 id: now.toString(),
@@ -1129,18 +1201,24 @@
                 maker: maker,
                 name: name,
                 color: color || '標準色',
-                weight: Math.max(0, Number(weight.toFixed(1)))
+                weight: netWeight
             });
             e.target.reset();
+            updateNewFormNetPreview();
             saveMaterialsOnly();
-            showToast('在庫材料を追加しました');
+
+            if (tareWeight > 0) {
+                showToast(`缶(${tareWeight}kg)を差し引き、正味 ${netWeight} kg で追加しました`);
+            } else {
+                showToast('在庫材料を追加しました');
+            }
         }
 
         function updateMaterialWeight(id, val) {
             const m = appState.materials.find(x => x.id === id);
             const num = parseFloat(val);
             if (m && !isNaN(num)) {
-                m.weight = Math.max(0, Number(num.toFixed(1)));
+                m.weight = formatWeightKg(num);
                 saveMaterialsOnly();
             }
         }
@@ -1148,9 +1226,22 @@
         function adjustWeight(id, delta) {
             const m = appState.materials.find(x => x.id === id);
             if (m) {
-                m.weight = Math.max(0, Number((m.weight + delta).toFixed(1)));
+                m.weight = formatWeightKg((Number(m.weight) || 0) + delta);
                 saveMaterialsOnly();
             }
+        }
+
+        function deductCanTareFromMaterial(id, tareStr) {
+            const tare = parseFloat(tareStr);
+            if (!tare || isNaN(tare)) return;
+            const m = appState.materials.find(x => x.id === id);
+            if (!m) return;
+
+            const before = Number(m.weight) || 0;
+            const after = formatWeightKg(before - tare);
+            m.weight = after;
+            saveMaterialsOnly();
+            showToast(`「${m.name}」から缶(${tare}kg)を差し引き、${after} kg に更新しました`);
         }
 
         function deleteMaterial(id) {
@@ -1161,50 +1252,87 @@
         }
 
         // ==========================================
-        // Bluetooth デジタルはかり連携＆重量反映
+        // Bluetooth デジタルはかり連携＆缶引き反映
         // ==========================================
+        function getSelectedBleTareKg() {
+            const sel = document.getElementById('ble-can-tare');
+            return sel ? (parseFloat(sel.value) || 0) : 0;
+        }
+
+        function getBleNetWeightKg() {
+            if (bleLatestWeightKg === null || isNaN(bleLatestWeightKg)) return null;
+            const tare = getSelectedBleTareKg();
+            return formatWeightKg(bleLatestWeightKg - tare);
+        }
+
+        function updateBleNetWeightPreview() {
+            const netEl = document.getElementById('ble-net-weight-display');
+            if (!netEl) return;
+            const net = getBleNetWeightKg();
+            netEl.textContent = net !== null ? String(net) : '--.-';
+        }
+
         function setBleLiveWeight(weightKg) {
             const num = parseFloat(weightKg);
             if (isNaN(num) || num < 0) return;
-            bleLatestWeightKg = Number(num.toFixed(1));
+            bleLatestWeightKg = formatWeightKg(num);
             const input = document.getElementById('ble-live-weight-input');
             if (input && document.activeElement !== input) {
-                input.value = bleLatestWeightKg.toFixed(1);
+                input.value = bleLatestWeightKg;
             }
+            updateBleNetWeightPreview();
         }
 
         function onManualScaleInput(val) {
             const num = parseFloat(val);
             if (!isNaN(num) && num >= 0) {
-                bleLatestWeightKg = Number(num.toFixed(1));
+                bleLatestWeightKg = formatWeightKg(num);
             } else {
                 bleLatestWeightKg = null;
             }
+            updateBleNetWeightPreview();
         }
 
         function applyBleWeightToMaterial(id) {
-            if (bleLatestWeightKg === null || isNaN(bleLatestWeightKg)) {
+            const netWeight = getBleNetWeightKg();
+            if (netWeight === null) {
                 const input = document.getElementById('ble-live-weight-input');
                 if (input) input.focus();
-                return showToast('はかりを接続するか、上の計測値欄に重さ(kg)を入力してください');
+                return showToast('はかりを接続するか、上の計測総重量欄に重さ(kg)を入力してください');
             }
             const m = appState.materials.find(x => x.id === id);
             if (!m) return;
-            m.weight = Math.max(0, Number(bleLatestWeightKg.toFixed(1)));
+
+            const tare = getSelectedBleTareKg();
+            m.weight = netWeight;
             saveMaterialsOnly();
-            showToast(`「${m.name}」の残量にはかり計測値（${m.weight} kg）を反映しました`);
+
+            if (tare > 0) {
+                showToast(`「${m.name}」に缶(${tare}kg)差し引き後の正味 ${netWeight} kg を反映しました`);
+            } else {
+                showToast(`「${m.name}」の残量に計測値（${netWeight} kg）を反映しました`);
+            }
         }
 
         function applyBleWeightToNewForm() {
-            if (bleLatestWeightKg === null || isNaN(bleLatestWeightKg)) {
+            const netWeight = getBleNetWeightKg();
+            if (netWeight === null) {
                 const input = document.getElementById('ble-live-weight-input');
                 if (input) input.focus();
                 return showToast('反映する計測値(kg)がありません');
             }
             const weightField = document.getElementById('mat-weight');
+            const formTareSelect = document.getElementById('mat-form-can-tare');
+            if (formTareSelect) {
+                formTareSelect.value = '0';
+            }
             if (weightField) {
-                weightField.value = bleLatestWeightKg.toFixed(1);
-                showToast(`新規材料の残量欄に ${bleLatestWeightKg.toFixed(1)} kg を入力しました`);
+                weightField.value = netWeight;
+                updateNewFormNetPreview();
+                const tare = getSelectedBleTareKg();
+                showToast(tare > 0
+                    ? `缶(${tare}kg)差し引き後の正味 ${netWeight} kg を新規欄へ入力しました`
+                    : `新規材料の残量欄に ${netWeight} kg を入力しました`);
             }
         }
 
@@ -1251,7 +1379,7 @@
                 bleDevice = device;
                 const devName = device.name || 'BLEデジタルはかり';
                 document.getElementById('ble-text').textContent = `${devName} 接続済`;
-                document.getElementById('ble-device-name').textContent = `接続中: ${devName}（各材料の「はかり反映」ボタンで即反映）`;
+                document.getElementById('ble-device-name').textContent = `接続中: ${devName}（缶の種類を選んで「はかり反映」を押すと自動差し引き）`;
                 document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-emerald-400';
                 document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
 
@@ -1390,7 +1518,7 @@
                 `).join('');
             }
 
-            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋BLEはかり反映対応）
+            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋缶重さ差し引き＋BLEはかり反映）
             const matBadge = document.getElementById('material-count-badge');
             if (matBadge) matBadge.textContent = `${appState.materials.length} 件`;
 
@@ -1425,7 +1553,7 @@
                     const isLowStock = Number(m.weight) <= 2.0;
                     return `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-xl px-3.5 py-2.5 transition shadow-md">
-                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
                             <!-- 左側：メーカー・材料名・色番号・残量バー -->
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -1438,19 +1566,31 @@
                                 </div>
                             </div>
 
-                            <!-- 右側：はかり反映・数量調整・削除 -->
-                            <div class="flex items-center justify-between lg:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 lg:pt-0 border-t lg:border-t-0 border-dark-800/80">
-                                <button type="button" onclick="applyBleWeightToMaterial('${m.id}')" title="Bluetoothはかりの計測値(${bleLatestWeightKg !== null ? bleLatestWeightKg + 'kg' : '未計測'})を残量へ反映" class="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap">
+                            <!-- 右側：缶引き・はかり反映・数量調整・削除 -->
+                            <div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 xl:pt-0 border-t xl:border-t-0 border-dark-800/80">
+                                <!-- 現在の残量から缶の重さを直接差し引くセレクター -->
+                                <select onchange="deductCanTareFromMaterial('${m.id}', this.value); this.value='';" title="現在の数値から選択した缶の重さを差し引く" class="bg-dark-850 hover:bg-dark-800 border border-gold-500/40 text-gold-400 font-extrabold text-[11px] px-2 py-1.5 rounded-lg focus:outline-none cursor-pointer">
+                                    <option value="">缶を引く...</option>
+                                    <option value="1.1">20L缶 (-1.1kg)</option>
+                                    <option value="0.95">10L缶 (-0.95kg)</option>
+                                    <option value="0.38">4L丸缶 (-0.38kg)</option>
+                                    <option value="0.35">4L丸缶・軽量 (-0.35kg)</option>
+                                    <option value="0.2">1.5L缶 (-0.2kg)</option>
+                                </select>
+
+                                <!-- Bluetoothはかり計測値（選択した缶引き後）を反映 -->
+                                <button type="button" onclick="applyBleWeightToMaterial('${m.id}')" title="Bluetoothはかりの計測値（缶引き後）を残量へ反映" class="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0" />
                                     </svg>
                                     <span>はかり反映</span>
                                 </button>
 
+                                <!-- 数量微調整 -->
                                 <div class="flex items-center gap-1 bg-dark-950 border border-dark-800 rounded-lg p-1">
                                     <button type="button" onclick="adjustWeight('${m.id}', -0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">-0.5</button>
                                     <div class="flex items-baseline gap-0.5 px-1">
-                                        <input type="number" step="0.1" value="${m.weight}" onchange="updateMaterialWeight('${m.id}', this.value)" class="w-14 bg-dark-900 border border-dark-700 rounded px-1 py-0.5 text-center text-sm font-black ${isLowStock ? 'text-red-400' : 'text-gold-400'} focus:outline-none focus:border-gold-500">
+                                        <input type="number" step="0.01" value="${m.weight}" onchange="updateMaterialWeight('${m.id}', this.value)" class="w-16 bg-dark-900 border border-dark-700 rounded px-1 py-0.5 text-center text-sm font-black ${isLowStock ? 'text-red-400' : 'text-gold-400'} focus:outline-none focus:border-gold-500">
                                         <span class="text-[10px] font-extrabold text-gray-500">kg</span>
                                     </div>
                                     <button type="button" onclick="adjustWeight('${m.id}', 0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">+0.5</button>
