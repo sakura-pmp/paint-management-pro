@@ -394,7 +394,7 @@
                         <p class="text-xs text-gray-400 mt-1">項目をタップして詳細表示・編集（変更は自動保存されます）</p>
                     </div>
 
-                    <!-- 並べ替え・年別フィルターコントロール -->
+                    <!-- 並べ替え・年別フィルター・バックアップ出力コントロール -->
                     <div class="flex flex-wrap items-center gap-2">
                         <div class="flex items-center bg-dark-900 border border-dark-700 rounded-xl px-3 py-1.5">
                             <span class="text-[11px] font-bold text-gray-400 mr-2 whitespace-nowrap">並べ替え:</span>
@@ -412,6 +412,28 @@
                                 <option value="all" class="bg-dark-900 text-white">すべての年</option>
                             </select>
                         </div>
+
+                        <button type="button" onclick="exportCustomersCSV()" title="顧客一覧をExcel用CSVで保存（テキスト情報）" class="bg-dark-850 hover:bg-dark-800 border border-dark-700 text-gray-200 font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span>CSV出力</span>
+                        </button>
+
+                        <button type="button" onclick="exportFullBackup()" title="現場写真を含む全データ（顧客・材料）をバックアップファイルとして保存" class="bg-gold-500/15 hover:bg-gold-500/25 border border-gold-500/50 text-gold-400 font-extrabold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            <span>全データ保存</span>
+                        </button>
+
+                        <label title="保存したバックアップファイル(.json)から写真・顧客・材料データを復元" class="cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span>復元</span>
+                            <input type="file" accept=".json,application/json" class="hidden" onchange="importFullBackup(this)">
+                        </label>
                     </div>
                 </div>
 
@@ -486,8 +508,8 @@
                 </div>
 
                 <div class="bg-dark-950 border border-dark-800 rounded-xl p-3.5 space-y-1.5">
-                    <div class="font-extrabold text-gold-400">3. 利用停止および免責事項</div>
-                    <p>禁止事項への違反が確認された場合、事前の通知なく該当企業IDの利用権限を停止し、法的措置を講じる場合があります。また、端末故障や通信障害等によるデータ損失に備え、定期的にCSV出力等でバックアップをお取りください。</p>
+                    <div class="font-extrabold text-gold-400">3. 利用停止および免責事項（定期バックアップのお願い）</div>
+                    <p>禁止事項への違反が確認された場合、事前の通知なく該当企業IDの利用権限を停止し、法的措置を講じる場合があります。また、端末故障や誤操作、通信障害等によるデータ損失に備え、「顧客・施工管理」画面の<strong>「全データ保存」</strong>（写真込み一括バックアップ）または<strong>「CSV出力」</strong>機能を用いて定期的にバックアップをお取りください。</p>
                 </div>
             </div>
 
@@ -620,6 +642,11 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
+        }
+
+        function csvCell(val) {
+            const s = val === null || val === undefined ? '' : String(val);
+            return `"${s.replace(/"/g, '""')}"`;
         }
 
         function showToast(msg) {
@@ -1241,6 +1268,153 @@
         }
 
         // ==========================================
+        // 顧客・施工管理 CSV出力 & 全データバックアップ・復元
+        // ==========================================
+        function exportCustomersCSV() {
+            const yearFilter = document.getElementById('customer-year-filter')?.value || 'all';
+            const targetProjects = appState.projects.filter(p => {
+                if (yearFilter === 'all') return true;
+                return getProjectYear(p) === yearFilter;
+            });
+
+            if (targetProjects.length === 0) {
+                return showToast('出力する顧客・案件データがありません');
+            }
+
+            let csv = '\uFEFF顧客名・現場名称,現場住所,施工ステータス,見積提出日,着工日,完工予定日,使用材料・カラー,現場メモ,現場写真枚数\n';
+            targetProjects.forEach(p => {
+                const mats = Array.isArray(p.assignedMaterials)
+                    ? p.assignedMaterials.map(am => `${am.maker ? am.maker + '/' : ''}${am.name}[${am.color}]`).join(' / ')
+                    : '';
+                const photoCount = Array.isArray(p.photos) ? p.photos.length : 0;
+                const notesClean = (p.notes || '').replace(/\r?\n/g, ' ');
+
+                csv += [
+                    csvCell(p.name),
+                    csvCell(p.address || ''),
+                    csvCell(p.status || '施工予定'),
+                    csvCell(p.estDate || ''),
+                    csvCell(p.startDate || ''),
+                    csvCell(p.endDate || ''),
+                    csvCell(mats),
+                    csvCell(notesClean),
+                    csvCell(`${photoCount}枚`)
+                ].join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const yearTag = yearFilter === 'all' ? '全期間' : `${yearFilter}年`;
+            a.href = url;
+            a.download = `顧客施工一覧_${yearTag}_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`顧客・施工一覧CSV（${targetProjects.length}件）を出力しました`);
+        }
+
+        function exportFullBackup() {
+            if (appState.projects.length === 0 && appState.materials.length === 0) {
+                return showToast('バックアップするデータがありません');
+            }
+
+            const backupPayload = {
+                app: 'Paint Management Pro',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                groupId: currentGroup || 'local',
+                projects: appState.projects,
+                materials: appState.materials
+            };
+
+            const jsonStr = JSON.stringify(backupPayload, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const idPrefix = currentGroup ? `${currentGroup}_` : '';
+            a.href = url;
+            a.download = `PaintManagementPro_全データバックアップ_${idPrefix}${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`写真を含む全データ（案件${appState.projects.length}件・材料${appState.materials.length}件）を保存しました`);
+        }
+
+        async function importFullBackup(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(ev) {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    if (!parsed || (!Array.isArray(parsed.projects) && !Array.isArray(parsed.materials))) {
+                        input.value = '';
+                        return showToast('エラー：正しいバックアップファイルではありません');
+                    }
+
+                    const restoredProjects = Array.isArray(parsed.projects) ? parsed.projects : [];
+                    const restoredMaterials = Array.isArray(parsed.materials) ? parsed.materials : [];
+
+                    const okConfirm = confirm(
+                        `バックアップファイルを復元しますか？\n` +
+                        `・案件（現場写真含む）：${restoredProjects.length} 件\n` +
+                        `・材料・在庫：${restoredMaterials.length} 件\n\n` +
+                        `※現在のデータはバックアップの内容で上書き更新されます。`
+                    );
+                    if (!okConfirm) {
+                        input.value = '';
+                        return;
+                    }
+
+                    appState.projects = sortProjectsByNewest(restoredProjects.map((p, idx) => ({
+                        ...p,
+                        id: String(p.id || (Date.now() + idx))
+                    })));
+                    appState.materials = restoredMaterials;
+                    saveLocalCache();
+                    renderAll();
+
+                    // クラウド認証中であればFirestore側へも復元データを同期
+                    if (isValidGroup(currentGroup) && isValidPin(currentPin) && isCloudAuthorized && db) {
+                        showToast('クラウドへ復元データを同期しています...');
+                        const groupDocRef = db.collection('paint_groups').doc(currentGroup);
+                        const projectsColRef = groupDocRef.collection('projects');
+
+                        await groupDocRef.set({
+                            pin: currentPin,
+                            materials: appState.materials,
+                            updatedAt: Date.now()
+                        }, { merge: true });
+
+                        const existingSnap = await projectsColRef.get();
+                        const newIds = new Set(appState.projects.map(p => String(p.id)));
+                        for (const doc of existingSnap.docs) {
+                            if (!newIds.has(doc.id)) {
+                                await doc.ref.delete();
+                            }
+                        }
+
+                        for (const proj of appState.projects) {
+                            await projectsColRef.doc(String(proj.id)).set({
+                                ...proj,
+                                updatedAt: Date.now()
+                            }, { merge: true });
+                        }
+                        updateSyncStatus(`復元・同期完了 (${currentGroup})`, 'cloud');
+                    }
+
+                    showToast(`復元が完了しました（案件${appState.projects.length}件・材料${appState.materials.length}件）`);
+                } catch (err) {
+                    console.error('Backup restore error:', err);
+                    showToast('エラー：バックアップファイルの読み込みに失敗しました');
+                } finally {
+                    input.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ==========================================
         // 材料・在庫管理（缶の重さ差し引き＆缶引き済みバッジ永続保持）
         // ==========================================
         function updateNewFormNetPreview() {
@@ -1528,7 +1702,7 @@
             if (appState.materials.length === 0) return showToast('出力する在庫データがありません');
             let csv = '\uFEFFメーカー,材料名,色番号,残量(kg)\n';
             appState.materials.forEach(m => {
-                csv += `"${m.maker || ''}","${m.name}","${m.color}",${m.weight}\n`;
+                csv += `${csvCell(m.maker || '')},${csvCell(m.name)},${csvCell(m.color)},${m.weight}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -1536,7 +1710,8 @@
             a.href = url;
             a.download = `在庫一覧_${new Date().toISOString().slice(0,10)}.csv`;
             a.click();
-            showToast('CSVファイルを出力しました');
+            URL.revokeObjectURL(url);
+            showToast('在庫CSVファイルを出力しました');
         }
 
         function copyInventoryList() {
