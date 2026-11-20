@@ -104,18 +104,23 @@
             </button>
         </nav>
 
-        <div class="p-5 border-t border-dark-700/80 space-y-2">
+        <div class="p-5 border-t border-dark-700/80 space-y-2.5">
             <div class="bg-dark-850 rounded-xl p-3.5 border border-dark-700/80 space-y-1">
                 <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Licensed Workspace</div>
                 <div id="sidebar-group-label" class="text-xs font-bold text-gold-400 truncate">ID未認証</div>
                 <div id="sidebar-pin-label" class="text-[11px] font-bold text-gray-500">認証状態: 未ログイン</div>
             </div>
-            <div class="text-[10px] text-gray-600 text-center">© Paint Management Pro</div>
+            <div class="text-center space-y-1">
+                <button type="button" onclick="openTermsModal()" class="text-[11px] font-bold text-gray-400 hover:text-gold-400 underline underline-offset-2 transition">
+                    利用規約・無断複製禁止事項
+                </button>
+                <div class="text-[10px] text-gray-500 leading-tight">© 2026 Paint Management Pro.<br>無断複製・転載・再配布禁止</div>
+            </div>
         </div>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="flex-1 md:pl-72">
+    <main class="flex-1 md:pl-72 flex flex-col min-h-screen">
         <!-- Top Sync Header -->
         <header class="sticky top-0 z-20 glass-panel border-b border-dark-700/80 px-4 md:px-8 py-3">
             <div class="max-w-6xl mx-auto space-y-2.5">
@@ -152,7 +157,7 @@
             </div>
         </header>
 
-        <div class="max-w-6xl mx-auto p-4 md:p-8">
+        <div class="max-w-6xl w-full mx-auto p-4 md:p-8 flex-1">
 
             <!-- TAB 1: 案件登録 -->
             <section id="tab-projects" class="tab-panel space-y-6">
@@ -415,6 +420,20 @@
             </section>
 
         </div>
+
+        <!-- 著作権・利用規約・無断複製禁止フッター -->
+        <footer class="max-w-6xl w-full mx-auto px-4 md:px-8 pt-6 pb-8 border-t border-dark-800/80 text-center space-y-1.5">
+            <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                <span class="font-bold text-gray-300">© 2026 Paint Management Pro. All Rights Reserved.</span>
+                <span class="hidden sm:inline text-dark-600">|</span>
+                <button type="button" onclick="openTermsModal()" class="text-gold-400 hover:text-gold-300 font-bold underline underline-offset-2 transition">
+                    利用規約・禁止事項
+                </button>
+            </div>
+            <p class="text-[10px] text-gray-500 leading-relaxed">
+                本システムのソースコード・デザイン・機能の無断複製、転載、改変、再配布、および契約外の第三者への共有を固く禁じます。
+            </p>
+        </footer>
     </main>
 
     <!-- Mobile Bottom Navigation -->
@@ -438,6 +457,47 @@
             <span class="text-[11px] font-bold mt-1">顧客・施工管理</span>
         </button>
     </nav>
+
+    <!-- 利用規約・著作権・禁止事項モーダル -->
+    <div id="terms-modal" onclick="closeTermsModal()" class="hidden fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
+        <div onclick="event.stopPropagation()" class="bg-dark-900 border border-dark-700 rounded-2xl max-w-lg w-full p-5 md:p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-dark-800 pb-3">
+                <div>
+                    <span class="text-[10px] font-extrabold tracking-widest text-gold-400 uppercase">Terms &amp; Copyright</span>
+                    <h3 class="text-base font-black text-white">利用規約・著作権および禁止事項</h3>
+                </div>
+                <button type="button" onclick="closeTermsModal()" class="text-gray-400 hover:text-white bg-dark-800 border border-dark-700 rounded-full px-3 py-1 text-xs font-bold">閉じる</button>
+            </div>
+
+            <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
+                <div class="bg-dark-950 border border-dark-800 rounded-xl p-3.5 space-y-1.5">
+                    <div class="font-extrabold text-gold-400">1. 著作権および知的財産権</div>
+                    <p>本システム（Paint Management Pro）に関するプログラム、画面デザイン、構成、機能および関連資料の一切の著作権・知的財産権は運営者に帰属します。</p>
+                </div>
+
+                <div class="bg-dark-950 border border-dark-800 rounded-xl p-3.5 space-y-1.5">
+                    <div class="font-extrabold text-gold-400">2. 禁止事項（無断複製・再配布の禁止）</div>
+                    <ul class="list-disc list-inside space-y-1 text-gray-300">
+                        <li>本システムのソースコード・画面構成の無断複製、転載、改変、リバースエンジニアリング</li>
+                        <li>本システムを模倣した類似サービスの制作・販売・再配布</li>
+                        <li>発行された企業IDおよびPINの契約外第三者への貸与・譲渡・公開</li>
+                        <li>不正アクセスやサーバーへ過度な負荷をかける行為</li>
+                    </ul>
+                </div>
+
+                <div class="bg-dark-950 border border-dark-800 rounded-xl p-3.5 space-y-1.5">
+                    <div class="font-extrabold text-gold-400">3. 利用停止および免責事項</div>
+                    <p>禁止事項への違反が確認された場合、事前の通知なく該当企業IDの利用権限を停止し、法的措置を講じる場合があります。また、端末故障や通信障害等によるデータ損失に備え、定期的にCSV出力等でバックアップをお取りください。</p>
+                </div>
+            </div>
+
+            <div class="pt-1">
+                <button type="button" onclick="closeTermsModal()" class="w-full bg-gold-500 hover:bg-gold-400 text-dark-950 font-black text-xs py-2.5 rounded-xl transition">
+                    同意して閉じる
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Fullscreen Photo Preview Modal -->
     <div id="photo-modal" onclick="closePhotoModal()" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4">
@@ -485,6 +545,14 @@
         // BLE Scale State
         let bleDevice = null;
         let bleLatestWeightKg = null;
+
+        function openTermsModal() {
+            document.getElementById('terms-modal').classList.remove('hidden');
+        }
+
+        function closeTermsModal() {
+            document.getElementById('terms-modal').classList.add('hidden');
+        }
 
         function formatWeightKg(val) {
             const num = Math.max(0, Number(val) || 0);
@@ -786,7 +854,7 @@
                     return;
                 }
 
-                // 3) 4桁PINの一致チェック（未設定ドキュメントも不正扱い）
+                // 3) 4桁PINの一致チェック
                 if (!data.pin || String(data.pin) !== currentPin) {
                     isCloudAuthorized = false;
                     updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
