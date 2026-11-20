@@ -104,12 +104,13 @@
             </button>
         </nav>
 
-        <div class="p-5 border-t border-dark-700/80">
+        <div class="p-5 border-t border-dark-700/80 space-y-2">
             <div class="bg-dark-850 rounded-xl p-3.5 border border-dark-700/80 space-y-1">
-                <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Workspace</div>
-                <div id="sidebar-group-label" class="text-xs font-bold text-gold-400 truncate">ID未設定</div>
-                <div id="sidebar-pin-label" class="text-[11px] font-bold text-gray-500">PIN: 未設定</div>
+                <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Licensed Workspace</div>
+                <div id="sidebar-group-label" class="text-xs font-bold text-gold-400 truncate">ID未認証</div>
+                <div id="sidebar-pin-label" class="text-[11px] font-bold text-gray-500">認証状態: 未ログイン</div>
             </div>
+            <div class="text-[10px] text-gray-600 text-center">© Paint Management Pro</div>
         </div>
     </aside>
 
@@ -130,22 +131,22 @@
                     </div>
                     <div id="sync-status-mob" class="text-[11px] font-bold text-gold-400 bg-dark-850 border border-dark-700 px-2.5 py-1 rounded-full flex items-center gap-1.5">
                         <span class="w-1.5 h-1.5 rounded-full bg-gold-400"></span>
-                        <span>未同期</span>
+                        <span>未認証</span>
                     </div>
                 </div>
 
                 <!-- Group + 4-Digit PIN Sync Bar -->
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center bg-dark-850 border border-dark-700 rounded-xl p-1 w-full md:w-auto gap-1">
-                        <span class="text-[11px] font-bold text-gray-400 pl-2 pr-1 whitespace-nowrap">KEY</span>
-                        <input id="group-input" type="text" value="" placeholder="お好きなIDを入力" class="min-w-0 bg-dark-950 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold flex-1 md:w-40 focus:outline-none focus:border-gold-500">
+                        <span class="text-[11px] font-bold text-gray-400 pl-2 pr-1 whitespace-nowrap">企業ID</span>
+                        <input id="group-input" type="text" value="" placeholder="発行されたIDを入力" class="min-w-0 bg-dark-950 border border-dark-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold flex-1 md:w-44 focus:outline-none focus:border-gold-500">
                         <span class="text-[11px] font-bold text-gray-400 pl-1.5 pr-0.5 whitespace-nowrap">PIN</span>
                         <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4桁" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)" class="w-16 flex-shrink-0 bg-dark-950 border border-dark-700 rounded-lg px-2 py-1 text-center text-xs text-gold-400 font-black tracking-widest focus:outline-none focus:border-gold-500">
-                        <button onclick="changeGroup()" class="flex-shrink-0 bg-gold-500 hover:bg-gold-400 text-dark-950 font-extrabold text-xs px-3 py-1 rounded-lg transition whitespace-nowrap">同期</button>
+                        <button onclick="changeGroup()" class="flex-shrink-0 bg-gold-500 hover:bg-gold-400 text-dark-950 font-extrabold text-xs px-3 py-1 rounded-lg transition whitespace-nowrap">認証・同期</button>
                     </div>
                     <div id="sync-status" class="hidden md:flex text-xs font-bold text-gold-400 bg-dark-850 border border-dark-700 px-3 py-1.5 rounded-full items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-gold-400"></span>
-                        <span>KEYと4桁PINを入力して同期</span>
+                        <span>発行された企業IDとPINを入力してください</span>
                     </div>
                 </div>
             </div>
@@ -521,10 +522,10 @@
             document.getElementById('pin-input').value = currentPin;
             document.getElementById('sidebar-group-label').textContent = isValidGroup(currentGroup)
                 ? currentGroup
-                : 'ID未設定';
-            document.getElementById('sidebar-pin-label').textContent = (isValidGroup(currentGroup) && isValidPin(currentPin))
-                ? 'PIN: ****（分割同期中）'
-                : 'PIN: 未設定（同期停止中）';
+                : 'ID未認証';
+            document.getElementById('sidebar-pin-label').textContent = (isValidGroup(currentGroup) && isValidPin(currentPin) && isCloudAuthorized)
+                ? '認証状態: ライセンス有効（同期中）'
+                : '認証状態: 未ログイン';
         }
 
         updateWorkspaceLabels();
@@ -541,7 +542,7 @@
         function getStorageKey() {
             const grp = isValidGroup(currentGroup) ? currentGroup : 'default';
             const pinSuffix = isValidPin(currentPin) ? currentPin : 'local';
-            return `paint_pro_split_${grp}_${pinSuffix}`;
+            return `paint_pro_licensed_${grp}_${pinSuffix}`;
         }
 
         function escapeHtml(str) {
@@ -557,7 +558,7 @@
             const t = document.getElementById('toast');
             t.textContent = msg;
             t.classList.remove('translate-x-full', 'opacity-0');
-            setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 3000);
+            setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 3500);
         }
 
         function switchTab(tabId) {
@@ -594,10 +595,11 @@
                 el.innerHTML = `<span class="w-2 h-2 rounded-full ${dotClass}"></span><span>${text}</span>`;
             }
             if (mobEl) {
-                const shortText = stateType === 'cloud' ? '同期中' : (stateType === 'error' ? 'PIN不一致' : '未同期');
+                const shortText = stateType === 'cloud' ? '認証済・同期中' : (stateType === 'error' ? '認証エラー' : '未認証');
                 mobEl.className = `text-[11px] font-bold ${textClass} bg-dark-850 border border-dark-700 px-2.5 py-1 rounded-full flex items-center gap-1.5`;
                 mobEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span><span>${shortText}</span>`;
             }
+            updateWorkspaceLabels();
         }
 
         function saveLocalCache() {
@@ -657,7 +659,7 @@
             renderAll();
 
             if (!isValidGroup(currentGroup) || !isValidPin(currentPin) || !isCloudAuthorized) {
-                updateSyncStatus('未同期（端末保存のみ）', 'warn');
+                updateSyncStatus('未認証（端末内お試し保存のみ）', 'warn');
                 return true;
             }
 
@@ -668,14 +670,14 @@
                         .collection('projects')
                         .doc(String(project.id))
                         .set(payload, { merge: true });
-                    updateSyncStatus(`個別同期完了 (${currentGroup})`, 'cloud');
+                    updateSyncStatus(`同期完了 (${currentGroup})`, 'cloud');
                     return true;
                 } catch (err) {
                     console.error('Firestore project save error:', err);
                     if (typeof onErrorRollback === 'function') onErrorRollback();
                     renderAll();
-                    updateSyncStatus('保存容量エラー', 'error');
-                    showToast('クラウド保存に失敗しました');
+                    updateSyncStatus('保存権限または容量エラー', 'error');
+                    showToast('クラウド保存に失敗しました（利用停止中または権限エラー）');
                     return false;
                 }
             }
@@ -704,7 +706,7 @@
             renderAll();
 
             if (!isValidGroup(currentGroup) || !isValidPin(currentPin) || !isCloudAuthorized) {
-                updateSyncStatus('未同期（端末保存のみ）', 'warn');
+                updateSyncStatus('未認証（端末内お試し保存のみ）', 'warn');
                 return true;
             }
 
@@ -719,7 +721,7 @@
                     return true;
                 } catch (err) {
                     console.error('Firestore materials save error:', err);
-                    updateSyncStatus('端末保存モード', 'warn');
+                    updateSyncStatus('保存権限エラー', 'error');
                     return false;
                 }
             }
@@ -737,15 +739,16 @@
             }
         }
 
+        // 【事前発行ID・PIN認証専用ロジック】未登録IDの自動作成を禁止
         async function startSyncListener(isManualTrigger = false) {
             stopAllListeners();
             isCloudAuthorized = false;
 
             if (!isValidGroup(currentGroup) || !isValidPin(currentPin)) {
                 loadLocalData();
-                updateSyncStatus('KEYと4桁PINを入力して同期', 'warn');
+                updateSyncStatus('発行された企業IDとPINを入力してください', 'warn');
                 if (isManualTrigger) {
-                    showToast('同期するにはお好きなID（KEY）と4桁のPINを入力してください');
+                    showToast('管理者から発行された企業IDと4桁PINを入力してください');
                 }
                 return;
             }
@@ -756,72 +759,76 @@
                 return;
             }
 
-            updateSyncStatus(`PIN認証中 (${currentGroup})...`, 'warn');
+            updateSyncStatus(`ライセンス認証中 (${currentGroup})...`, 'warn');
             const groupDocRef = db.collection('paint_groups').doc(currentGroup);
             const projectsColRef = groupDocRef.collection('projects');
 
             try {
                 const snap = await groupDocRef.get();
-                if (snap.exists) {
-                    const data = snap.data() || {};
-                    if (data.pin && String(data.pin) !== currentPin) {
-                        isCloudAuthorized = false;
-                        updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
-                        showToast('エラー：このIDの4桁PINが一致しません');
-                        return;
-                    }
-                    if (!data.pin) {
-                        await groupDocRef.set({ pin: currentPin }, { merge: true });
-                    }
 
-                    if (Array.isArray(data.projects) && data.projects.length > 0) {
-                        const batch = db.batch();
-                        data.projects.forEach((legacyProj, idx) => {
-                            const projId = String(legacyProj.id || (Date.now() + idx));
-                            const normalized = {
-                                ...legacyProj,
-                                id: projId,
-                                createdAt: legacyProj.createdAt || Number(projId) || (Date.now() - idx * 1000)
-                            };
-                            batch.set(projectsColRef.doc(projId), normalized, { merge: true });
-                        });
-                        batch.update(groupDocRef, {
-                            projects: firebase.firestore.FieldValue.delete(),
-                            updatedAt: Date.now()
-                        });
-                        await batch.commit();
+                // 1) 事前登録されていないIDは一切拒否（タダ乗り防止）
+                if (!snap.exists) {
+                    isCloudAuthorized = false;
+                    updateSyncStatus('未登録の企業IDです', 'error');
+                    if (isManualTrigger) {
+                        showToast('エラー：この企業IDは登録されていません（管理者にお問い合わせください）');
                     }
-                } else {
-                    loadLocalData();
-                    await groupDocRef.set({
-                        pin: currentPin,
-                        materials: appState.materials,
-                        updatedAt: Date.now()
-                    });
-                    for (const initProj of appState.projects) {
+                    return;
+                }
+
+                const data = snap.data() || {};
+
+                // 2) 利用停止フラグ（active === false）チェック
+                if (data.active === false) {
+                    isCloudAuthorized = false;
+                    updateSyncStatus('この企業IDは現在停止中です', 'error');
+                    showToast('エラー：この企業IDの利用権限が停止されています');
+                    return;
+                }
+
+                // 3) 4桁PINの一致チェック（未設定ドキュメントも不正扱い）
+                if (!data.pin || String(data.pin) !== currentPin) {
+                    isCloudAuthorized = false;
+                    updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
+                    showToast('エラー：企業IDまたは4桁PINが正しくありません');
+                    return;
+                }
+
+                // 認証成功
+                isCloudAuthorized = true;
+                loadLocalData();
+
+                // 初回ログイン時にまだ案件が0件ならサンプル案件を1件だけ作成
+                const initialProjSnap = await projectsColRef.limit(1).get();
+                if (initialProjSnap.empty && (!Array.isArray(data.materials) || data.materials.length === 0)) {
+                    const samples = createInitialSampleProjects();
+                    for (const initProj of samples) {
                         await projectsColRef.doc(String(initProj.id)).set(initProj);
                     }
                 }
 
-                isCloudAuthorized = true;
-                loadLocalData();
-
                 unsubscribeGroupDoc = groupDocRef.onSnapshot(doc => {
-                    if (!doc.exists) return;
-                    const data = doc.data() || {};
-                    if (data.pin && String(data.pin) !== currentPin) {
+                    if (!doc.exists) {
                         isCloudAuthorized = false;
                         stopAllListeners();
-                        updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
+                        updateSyncStatus('企業IDが無効化されました', 'error');
                         return;
                     }
-                    appState.materials = Array.isArray(data.materials) ? data.materials : [];
+                    const d = doc.data() || {};
+                    if (d.active === false || String(d.pin) !== currentPin) {
+                        isCloudAuthorized = false;
+                        stopAllListeners();
+                        updateSyncStatus('認証が解除されました', 'error');
+                        showToast('利用権限が変更されたため同期を停止しました');
+                        return;
+                    }
+                    appState.materials = Array.isArray(d.materials) ? d.materials : [];
                     saveLocalCache();
                     renderAll();
-                    updateSyncStatus(`分割同期中 (${currentGroup})`, 'cloud');
+                    updateSyncStatus(`同期中 (${d.companyName || currentGroup})`, 'cloud');
                 }, err => {
                     console.warn('Firestore group listener error:', err);
-                    updateSyncStatus('ローカル保存モード', 'warn');
+                    updateSyncStatus('接続エラー', 'error');
                 });
 
                 unsubscribeProjectsCol = projectsColRef.onSnapshot(querySnap => {
@@ -838,18 +845,19 @@
                     appState.projects = sortProjectsByNewest(loadedProjects);
                     saveLocalCache();
                     renderAll();
-                    updateSyncStatus(`分割同期中 (${currentGroup})`, 'cloud');
                 }, err => {
                     console.warn('Firestore projects listener error:', err);
                 });
 
                 if (isManualTrigger) {
-                    showToast(`ID「${currentGroup}」（案件別分割同期）に接続しました`);
+                    const labelName = data.companyName ? `${data.companyName}（${currentGroup}）` : currentGroup;
+                    showToast(`「${labelName}」のクラウド同期を開始しました`);
                 }
             } catch (err) {
-                console.error('PIN verification error:', err);
+                console.error('Auth verification error:', err);
+                isCloudAuthorized = false;
                 loadLocalData();
-                updateSyncStatus('接続エラー（端末保存モード）', 'warn');
+                updateSyncStatus('認証エラー（通信または権限を確認してください）', 'error');
             }
         }
 
@@ -859,11 +867,11 @@
 
             if (!val) {
                 document.getElementById('group-input').focus();
-                return showToast('お好きなID（KEY）を入力してください');
+                return showToast('発行された企業IDを入力してください');
             }
             if (!isValidPin(pinVal)) {
                 document.getElementById('pin-input').focus();
-                return showToast('4桁の数字で暗証番号（PIN）を入力してください');
+                return showToast('4桁の数字でPINを入力してください');
             }
 
             currentGroup = val;
@@ -1370,7 +1378,6 @@
         function parseBleScaleDataView(dataView) {
             if (!dataView || dataView.byteLength < 2) return null;
             try {
-                // 1) 標準 Bluetooth Weight Scale Measurement (0x2A9D)
                 if (dataView.byteLength >= 3) {
                     const flags = dataView.getUint8(0);
                     const isImperial = (flags & 0x01) !== 0;
@@ -1380,7 +1387,6 @@
                         if (kg >= 0 && kg <= 200) return kg;
                     }
                 }
-                // 2) UTF-8 テキスト形式（例: "ST,GS,  12.45kg" や "12.4"）
                 const decoder = new TextDecoder('utf-8');
                 const str = decoder.decode(dataView.buffer);
                 const match = str.match(/(\d+(?:\.\d+)?)\s*(kg|g)?/i);
@@ -1439,9 +1445,7 @@
                                 subscribed = true;
                             }
                         }
-                    } catch (e) {
-                        // skip restricted service
-                    }
+                    } catch (e) {}
                 }
 
                 showToast(subscribed
@@ -1549,7 +1553,7 @@
                 `).join('');
             }
 
-            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋缶引き済みバッジ永続表示＋BLEはかり反映）
+            // TAB 2: 材料・在庫管理
             const matBadge = document.getElementById('material-count-badge');
             if (matBadge) matBadge.textContent = `${appState.materials.length} 件`;
 
@@ -1587,7 +1591,6 @@
                     return `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-xl px-3.5 py-2.5 transition shadow-md">
                         <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
-                            <!-- 左側：メーカー・材料名・色番号・残量バー -->
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     ${m.maker ? `<span class="text-[10px] font-bold text-gray-400 bg-dark-850 border border-dark-700 px-1.5 py-0.5 rounded">${escapeHtml(m.maker)}</span>` : ''}
@@ -1599,9 +1602,7 @@
                                 </div>
                             </div>
 
-                            <!-- 右側：缶引きタブ（いつでも選択可能）＋缶引き済バッジ（消えない）・はかり反映・数量調整・削除 -->
                             <div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 xl:pt-0 border-t xl:border-t-0 border-dark-800/80">
-                                <!-- 缶を引くセレクター（いつでも選択可能）＆ 缶引き済みバッジ -->
                                 <div class="flex items-center gap-1.5">
                                     <select onchange="deductCanTareFromMaterial('${m.id}', this);" title="現在の数値から選択した缶の重さを差し引く" class="bg-dark-850 hover:bg-dark-800 border border-gold-500/40 text-gold-400 cursor-pointer font-extrabold text-[11px] px-2 py-1.5 rounded-lg focus:outline-none">
                                         <option value="" data-label="">缶を引く...</option>
@@ -1622,7 +1623,6 @@
                                     ` : ''}
                                 </div>
 
-                                <!-- Bluetoothはかり計測値（選択した缶引き後）を反映 -->
                                 <button type="button" onclick="applyBleWeightToMaterial('${m.id}')" title="Bluetoothはかりの計測値（缶引き後）を残量へ反映" class="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0" />
@@ -1630,7 +1630,6 @@
                                     <span>はかり反映</span>
                                 </button>
 
-                                <!-- 数量微調整 -->
                                 <div class="flex items-center gap-1 bg-dark-950 border border-dark-800 rounded-lg p-1">
                                     <button type="button" onclick="adjustWeight('${m.id}', -0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">-0.5</button>
                                     <div class="flex items-baseline gap-0.5 px-1">
