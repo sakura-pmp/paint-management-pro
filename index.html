@@ -284,15 +284,15 @@
                         <div class="flex items-center gap-1.5 bg-dark-950 border border-dark-700 rounded-xl px-2.5 py-1.5 flex-1 sm:flex-initial">
                             <span class="text-[11px] font-bold text-gold-400 whitespace-nowrap">差し引く缶:</span>
                             <select id="ble-can-tare" onchange="updateBleNetWeightPreview()" class="bg-transparent text-xs font-extrabold text-white focus:outline-none w-full">
-                                <option value="0" class="bg-dark-900 text-white">なし（0kg / そのまま）</option>
-                                <option value="1.1" class="bg-dark-900 text-white">18L缶（-1.1kg）</option>
-                                <option value="0.85" class="bg-dark-900 text-white">10L缶（-0.85kg）</option>
-                                <option value="0.58" class="bg-dark-900 text-white">6L(1/3)（-0.58kg）</option>
-                                <option value="0.38" class="bg-dark-900 text-white">4L丸缶（-0.38kg）</option>
-                                <option value="0.38" class="bg-dark-900 text-white">4L角缶（-0.38kg）</option>
-                                <option value="0.24" class="bg-dark-900 text-white">2L縦缶（-0.24kg）</option>
-                                <option value="1" class="bg-dark-900 text-white">プラペール缶（-1kg）</option>
-                                <option value="1.65" class="bg-dark-900 text-white">鉄ペール缶（-1.65kg）</option>
+                                <option value="0" data-label="" class="bg-dark-900 text-white">なし（0kg / そのまま）</option>
+                                <option value="1.1" data-label="18L缶" class="bg-dark-900 text-white">18L缶（-1.1kg）</option>
+                                <option value="0.85" data-label="10L缶" class="bg-dark-900 text-white">10L缶（-0.85kg）</option>
+                                <option value="0.58" data-label="6L缶(1/3)" class="bg-dark-900 text-white">6L缶(1/3)（-0.58kg）</option>
+                                <option value="0.38" data-label="4L丸缶" class="bg-dark-900 text-white">4L丸缶（-0.38kg）</option>
+                                <option value="0.38" data-label="4L角缶" class="bg-dark-900 text-white">4L角缶（-0.38kg）</option>
+                                <option value="0.24" data-label="2L縦缶" class="bg-dark-900 text-white">2L縦缶（-0.24kg）</option>
+                                <option value="1" data-label="プラペール缶" class="bg-dark-900 text-white">プラペール缶（-1kg）</option>
+                                <option value="1.65" data-label="鉄ペール缶" class="bg-dark-900 text-white">鉄ペール缶（-1.65kg）</option>
                             </select>
                         </div>
 
@@ -330,15 +330,15 @@
                         <div class="sm:col-span-3">
                             <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">缶の重さ差し引き</label>
                             <select id="mat-form-can-tare" onchange="updateNewFormNetPreview()" class="w-full bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-gold-400 text-xs font-extrabold focus:outline-none focus:border-gold-500 h-[38px]">
-                                <option value="0">なし（正味そのまま）</option>
-                                <option value="1.1">18L缶（-1.1kg）</option>
-                                <option value="0.85">10L缶（-0.85kg）</option>
-                                <option value="0.58">6L(1/3)（-0.58kg）</option>
-                                <option value="0.38">4L丸缶（-0.38kg）</option>
-                                <option value="0.38">4L角缶（-0.38kg）</option>
-                                <option value="0.24">2L縦缶（-0.24kg）</option>
-                                <option value="1">プラペール缶（-1kg）</option>
-                                <option value="1.65">鉄ペール缶（-1.65kg）</option>
+                                <option value="0" data-label="">なし（正味そのまま）</option>
+                                <option value="1.1" data-label="18L缶">18L缶（-1.1kg）</option>
+                                <option value="0.85" data-label="10L缶">10L缶（-0.85kg）</option>
+                                <option value="0.58" data-label="6L缶(1/3)">6L缶(1/3)（-0.58kg）</option>
+                                <option value="0.38" data-label="4L丸缶">4L丸缶（-0.38kg）</option>
+                                <option value="0.38" data-label="4L角缶">4L角缶（-0.38kg）</option>
+                                <option value="0.24" data-label="2L縦缶">2L縦缶（-0.24kg）</option>
+                                <option value="1" data-label="プラペール缶">プラペール缶（-1kg）</option>
+                                <option value="1.65" data-label="鉄ペール缶">鉄ペール缶（-1.65kg）</option>
                             </select>
                         </div>
                         <div class="sm:col-span-3">
@@ -481,7 +481,7 @@
         let expandedCustomerIds = new Set();
         let activeModalContext = { projectId: null, photoIdx: null };
 
-        // 缶引き済みフラグ管理（id -> 差し引いたkg）※1回の計測につき1回のみ選択可
+        // 缶引き済み表示管理（id -> { label: '18L缶', tare: 1.1 }）※タブ自体はいつでも再選択可
         const deductedCanByMaterialId = new Map();
 
         // BLE Scale State
@@ -1168,7 +1168,7 @@
         }
 
         // ==========================================
-        // 材料・在庫管理（缶の重さ差し引き対応・1回のみ選択ロック付）
+        // 材料・在庫管理（缶の重さ差し引き＆缶引き済みバッジ表示対応）
         // ==========================================
         function updateNewFormNetPreview() {
             const rawVal = parseFloat(document.getElementById('mat-weight')?.value);
@@ -1190,7 +1190,10 @@
             const name = document.getElementById('mat-name').value.trim();
             const color = document.getElementById('mat-color').value.trim();
             const rawWeight = parseFloat(document.getElementById('mat-weight').value);
-            const tareWeight = parseFloat(document.getElementById('mat-form-can-tare')?.value) || 0;
+            const formTareSel = document.getElementById('mat-form-can-tare');
+            const tareWeight = parseFloat(formTareSel?.value) || 0;
+            const selectedOpt = formTareSel?.options[formTareSel.selectedIndex];
+            const canLabel = selectedOpt?.dataset?.label || '';
             if (!name || isNaN(rawWeight)) return;
 
             const netWeight = formatWeightKg(rawWeight - tareWeight);
@@ -1205,14 +1208,17 @@
                 weight: netWeight
             });
             if (tareWeight > 0) {
-                deductedCanByMaterialId.set(newId, tareWeight);
+                deductedCanByMaterialId.set(newId, {
+                    label: canLabel || `${tareWeight}kg缶`,
+                    tare: tareWeight
+                });
             }
             e.target.reset();
             updateNewFormNetPreview();
             saveMaterialsOnly();
 
             if (tareWeight > 0) {
-                showToast(`缶(${tareWeight}kg)を差し引き、正味 ${netWeight} kg で追加しました`);
+                showToast(`${canLabel || '缶'}(-${tareWeight}kg)を差し引き、正味 ${netWeight} kg で追加しました`);
             } else {
                 showToast('在庫材料を追加しました');
             }
@@ -1223,7 +1229,6 @@
             const num = parseFloat(val);
             if (m && !isNaN(num)) {
                 m.weight = formatWeightKg(num);
-                // 数値が新しく手入力されたら「缶を引く」の1回選択ロックを解除
                 deductedCanByMaterialId.delete(id);
                 saveMaterialsOnly();
             }
@@ -1233,17 +1238,18 @@
             const m = appState.materials.find(x => x.id === id);
             if (m) {
                 m.weight = formatWeightKg((Number(m.weight) || 0) + delta);
-                // 数値を変更したら「缶を引く」の1回選択ロックを解除
                 deductedCanByMaterialId.delete(id);
                 saveMaterialsOnly();
             }
         }
 
-        function deductCanTareFromMaterial(id, tareStr) {
-            if (deductedCanByMaterialId.has(id)) {
-                return showToast('すでに缶の重さは差し引き済みです（再計測すると再選択できます）');
-            }
-            const tare = parseFloat(tareStr);
+        function deductCanTareFromMaterial(id, selectEl) {
+            if (!selectEl) return;
+            const tare = parseFloat(selectEl.value);
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            const canLabel = selectedOpt?.dataset?.label || '';
+            selectEl.value = '';
+
             if (!tare || isNaN(tare)) return;
             const m = appState.materials.find(x => x.id === id);
             if (!m) return;
@@ -1251,10 +1257,12 @@
             const before = Number(m.weight) || 0;
             const after = formatWeightKg(before - tare);
             m.weight = after;
-            // 1回選択のみに制限（ロック）
-            deductedCanByMaterialId.set(id, tare);
+            deductedCanByMaterialId.set(id, {
+                label: canLabel || `${tare}kg缶`,
+                tare: tare
+            });
             saveMaterialsOnly();
-            showToast(`「${m.name}」から缶(${tare}kg)を差し引き、${after} kg に更新しました`);
+            showToast(`「${m.name}」から${canLabel || '缶'}(-${tare}kg)を差し引き、${after} kg に更新しました`);
         }
 
         function deleteMaterial(id) {
@@ -1268,9 +1276,17 @@
         // ==========================================
         // Bluetooth デジタルはかり連携＆缶引き反映
         // ==========================================
-        function getSelectedBleTareKg() {
+        function getSelectedBleTareInfo() {
             const sel = document.getElementById('ble-can-tare');
-            return sel ? (parseFloat(sel.value) || 0) : 0;
+            if (!sel) return { tare: 0, label: '' };
+            const tare = parseFloat(sel.value) || 0;
+            const selectedOpt = sel.options[sel.selectedIndex];
+            const label = selectedOpt?.dataset?.label || '';
+            return { tare, label };
+        }
+
+        function getSelectedBleTareKg() {
+            return getSelectedBleTareInfo().tare;
         }
 
         function getBleNetWeightKg() {
@@ -1317,19 +1333,20 @@
             const m = appState.materials.find(x => x.id === id);
             if (!m) return;
 
-            const tare = getSelectedBleTareKg();
+            const { tare, label } = getSelectedBleTareInfo();
             m.weight = netWeight;
             if (tare > 0) {
-                // 上のパネルで既に缶を引いて反映した場合は二重引き防止のためロック
-                deductedCanByMaterialId.set(id, tare);
+                deductedCanByMaterialId.set(id, {
+                    label: label || `${tare}kg缶`,
+                    tare: tare
+                });
             } else {
-                // 缶引きなし（総重量そのまま）で反映した場合は1回選択可能にリセット
                 deductedCanByMaterialId.delete(id);
             }
             saveMaterialsOnly();
 
             if (tare > 0) {
-                showToast(`「${m.name}」に缶(${tare}kg)差し引き後の正味 ${netWeight} kg を反映しました`);
+                showToast(`「${m.name}」に${label || '缶'}(-${tare}kg)差し引き後の正味 ${netWeight} kg を反映しました`);
             } else {
                 showToast(`「${m.name}」の残量に計測値（${netWeight} kg）を反映しました`);
             }
@@ -1350,9 +1367,9 @@
             if (weightField) {
                 weightField.value = netWeight;
                 updateNewFormNetPreview();
-                const tare = getSelectedBleTareKg();
+                const { tare, label } = getSelectedBleTareInfo();
                 showToast(tare > 0
-                    ? `缶(${tare}kg)差し引き後の正味 ${netWeight} kg を新規欄へ入力しました`
+                    ? `${label || '缶'}(-${tare}kg)差し引き後の正味 ${netWeight} kg を新規欄へ入力しました`
                     : `新規材料の残量欄に ${netWeight} kg を入力しました`);
             }
         }
@@ -1539,7 +1556,7 @@
                 `).join('');
             }
 
-            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋1回のみ缶引きロック＋BLEはかり反映）
+            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋缶引き済みバッジ＋BLEはかり反映）
             const matBadge = document.getElementById('material-count-badge');
             if (matBadge) matBadge.textContent = `${appState.materials.length} 件`;
 
@@ -1572,8 +1589,7 @@
                 mList.innerHTML = sortedMaterials.map(m => {
                     const pct = Math.min(100, Math.round((m.weight / 16) * 100));
                     const isLowStock = Number(m.weight) <= 2.0;
-                    const deductedTare = deductedCanByMaterialId.get(m.id);
-                    const isCanDeducted = deductedTare !== undefined;
+                    const deductedInfo = deductedCanByMaterialId.get(m.id);
 
                     return `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-xl px-3.5 py-2.5 transition shadow-md">
@@ -1590,25 +1606,28 @@
                                 </div>
                             </div>
 
-                            <!-- 右側：缶引き（1回のみ）・はかり反映・数量調整・削除 -->
+                            <!-- 右側：缶引きタブ（いつでも選択可能）＋缶引き済バッジ・はかり反映・数量調整・削除 -->
                             <div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 xl:pt-0 border-t xl:border-t-0 border-dark-800/80">
-                                <!-- 現在の残量から缶の重さを1回だけ差し引くセレクター -->
-                                <select ${isCanDeducted ? 'disabled' : ''} onchange="deductCanTareFromMaterial('${m.id}', this.value); this.value='';" title="${isCanDeducted ? 'すでに缶引き済みです（数値変更またははかり反映で再選択可能）' : '現在の数値から選択した缶の重さを1回差し引く'}" class="${isCanDeducted ? 'bg-dark-950 border border-dark-700 text-gray-500 opacity-70 cursor-not-allowed' : 'bg-dark-850 hover:bg-dark-800 border border-gold-500/40 text-gold-400 cursor-pointer'} font-extrabold text-[11px] px-2 py-1.5 rounded-lg focus:outline-none">
-                                    ${isCanDeducted
-                                        ? `<option value="">缶引き済(-${deductedTare}kg)</option>`
-                                        : `
-                                        <option value="">缶を引く...</option>
-                                        <option value="1.1">18L缶 (-1.1kg)</option>
-                                        <option value="0.85">10L缶 (-0.85kg)</option>
-                                        <option value="0.58">6L(1/3) (-0.58kg)</option>
-                                        <option value="0.38">4L丸缶 (-0.38kg)</option>
-                                        <option value="0.38">4L角缶 (-0.38kg)</option>
-                                        <option value="0.24">2L縦缶 (-0.24kg)</option>
-                                        <option value="1">プラペール缶 (-1kg)</option>
-                                        <option value="1.65">鉄ペール缶 (-1.65kg)</option>
-                                        `
-                                    }
-                                </select>
+                                <!-- 缶を引くセレクター（いつでも選択可能）＆ 缶引き済みバッジ -->
+                                <div class="flex items-center gap-1.5">
+                                    <select onchange="deductCanTareFromMaterial('${m.id}', this);" title="現在の数値から選択した缶の重さを差し引く" class="bg-dark-850 hover:bg-dark-800 border border-gold-500/40 text-gold-400 cursor-pointer font-extrabold text-[11px] px-2 py-1.5 rounded-lg focus:outline-none">
+                                        <option value="" data-label="">缶を引く...</option>
+                                        <option value="1.1" data-label="18L缶">18L缶 (-1.1kg)</option>
+                                        <option value="0.85" data-label="10L缶">10L缶 (-0.85kg)</option>
+                                        <option value="0.58" data-label="6L缶(1/3)">6L缶(1/3) (-0.58kg)</option>
+                                        <option value="0.38" data-label="4L丸缶">4L丸缶 (-0.38kg)</option>
+                                        <option value="0.38" data-label="4L角缶">4L角缶 (-0.38kg)</option>
+                                        <option value="0.24" data-label="2L縦缶">2L縦缶 (-0.24kg)</option>
+                                        <option value="1" data-label="プラペール缶">プラペール缶 (-1kg)</option>
+                                        <option value="1.65" data-label="鉄ペール缶">鉄ペール缶 (-1.65kg)</option>
+                                    </select>
+                                    ${deductedInfo ? `
+                                        <span title="缶引き済み（-${deductedInfo.tare}kg）" class="inline-flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-extrabold text-[11px] px-2 py-1 rounded-lg whitespace-nowrap">
+                                            <span>${escapeHtml(deductedInfo.label)}</span>
+                                            <span>☑️</span>
+                                        </span>
+                                    ` : ''}
+                                </div>
 
                                 <!-- Bluetoothはかり計測値（選択した缶引き後）を反映 -->
                                 <button type="button" onclick="applyBleWeightToMaterial('${m.id}')" title="Bluetoothはかりの計測値（缶引き後）を残量へ反映" class="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap">
