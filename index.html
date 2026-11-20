@@ -481,9 +481,6 @@
         let expandedCustomerIds = new Set();
         let activeModalContext = { projectId: null, photoIdx: null };
 
-        // 缶引き済み表示管理（id -> { label: '18L缶', tare: 1.1 }）※タブ自体はいつでも再選択可
-        const deductedCanByMaterialId = new Map();
-
         // BLE Scale State
         let bleDevice = null;
         let bleLatestWeightKg = null;
@@ -1168,7 +1165,7 @@
         }
 
         // ==========================================
-        // 材料・在庫管理（缶の重さ差し引き＆缶引き済みバッジ表示対応）
+        // 材料・在庫管理（缶の重さ差し引き＆缶引き済みバッジ永続保持）
         // ==========================================
         function updateNewFormNetPreview() {
             const rawVal = parseFloat(document.getElementById('mat-weight')?.value);
@@ -1199,20 +1196,21 @@
             const netWeight = formatWeightKg(rawWeight - tareWeight);
             const now = Date.now();
             const newId = now.toString();
-            appState.materials.unshift({
+            const newMaterial = {
                 id: newId,
                 createdAt: now,
                 maker: maker,
                 name: name,
                 color: color || '標準色',
                 weight: netWeight
-            });
+            };
             if (tareWeight > 0) {
-                deductedCanByMaterialId.set(newId, {
+                newMaterial.deductedCan = {
                     label: canLabel || `${tareWeight}kg缶`,
                     tare: tareWeight
-                });
+                };
             }
+            appState.materials.unshift(newMaterial);
             e.target.reset();
             updateNewFormNetPreview();
             saveMaterialsOnly();
@@ -1229,7 +1227,6 @@
             const num = parseFloat(val);
             if (m && !isNaN(num)) {
                 m.weight = formatWeightKg(num);
-                deductedCanByMaterialId.delete(id);
                 saveMaterialsOnly();
             }
         }
@@ -1238,7 +1235,6 @@
             const m = appState.materials.find(x => x.id === id);
             if (m) {
                 m.weight = formatWeightKg((Number(m.weight) || 0) + delta);
-                deductedCanByMaterialId.delete(id);
                 saveMaterialsOnly();
             }
         }
@@ -1257,10 +1253,10 @@
             const before = Number(m.weight) || 0;
             const after = formatWeightKg(before - tare);
             m.weight = after;
-            deductedCanByMaterialId.set(id, {
+            m.deductedCan = {
                 label: canLabel || `${tare}kg缶`,
                 tare: tare
-            });
+            };
             saveMaterialsOnly();
             showToast(`「${m.name}」から${canLabel || '缶'}(-${tare}kg)を差し引き、${after} kg に更新しました`);
         }
@@ -1268,7 +1264,6 @@
         function deleteMaterial(id) {
             if (!confirm('この材料を在庫一覧から削除しますか？')) return;
             appState.materials = appState.materials.filter(m => m.id !== id);
-            deductedCanByMaterialId.delete(id);
             saveMaterialsOnly();
             showToast('材料を削除しました');
         }
@@ -1336,12 +1331,10 @@
             const { tare, label } = getSelectedBleTareInfo();
             m.weight = netWeight;
             if (tare > 0) {
-                deductedCanByMaterialId.set(id, {
+                m.deductedCan = {
                     label: label || `${tare}kg缶`,
                     tare: tare
-                });
-            } else {
-                deductedCanByMaterialId.delete(id);
+                };
             }
             saveMaterialsOnly();
 
@@ -1556,7 +1549,7 @@
                 `).join('');
             }
 
-            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋缶引き済みバッジ＋BLEはかり反映）
+            // TAB 2: 材料・在庫管理（コンパクトリスト＋並べ替え＋缶引き済みバッジ永続表示＋BLEはかり反映）
             const matBadge = document.getElementById('material-count-badge');
             if (matBadge) matBadge.textContent = `${appState.materials.length} 件`;
 
@@ -1589,7 +1582,7 @@
                 mList.innerHTML = sortedMaterials.map(m => {
                     const pct = Math.min(100, Math.round((m.weight / 16) * 100));
                     const isLowStock = Number(m.weight) <= 2.0;
-                    const deductedInfo = deductedCanByMaterialId.get(m.id);
+                    const deductedInfo = m.deductedCan && m.deductedCan.label ? m.deductedCan : null;
 
                     return `
                     <div class="bg-dark-900 border border-dark-700/90 hover:border-gold-500/40 rounded-xl px-3.5 py-2.5 transition shadow-md">
@@ -1606,7 +1599,7 @@
                                 </div>
                             </div>
 
-                            <!-- 右側：缶引きタブ（いつでも選択可能）＋缶引き済バッジ・はかり反映・数量調整・削除 -->
+                            <!-- 右側：缶引きタブ（いつでも選択可能）＋缶引き済バッジ（消えない）・はかり反映・数量調整・削除 -->
                             <div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-shrink-0 pt-1.5 xl:pt-0 border-t xl:border-t-0 border-dark-800/80">
                                 <!-- 缶を引くセレクター（いつでも選択可能）＆ 缶引き済みバッジ -->
                                 <div class="flex items-center gap-1.5">
