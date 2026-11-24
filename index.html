@@ -268,15 +268,15 @@
 
                 <!-- 高機能BLEデジタルはかり（A&D SH-3000AWP-BT / Eufy C1 / 標準BLEスケール対応） -->
                 <div id="ble-live-bar" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-4 space-y-3.5 shadow-xl">
-                    <!-- 1段目：接続ステータス＆安定判定バッジ＆正味重量ライブ表示 -->
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                    <!-- 1段目：接続ステータス＆安定判定バッジ＆特大・正味重量ライブ表示 -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5 min-w-0">
-                            <span id="ble-live-dot" class="w-2.5 h-2.5 rounded-full bg-gray-600 flex-shrink-0"></span>
+                            <span id="ble-live-dot" class="w-3 h-3 rounded-full bg-gray-600 flex-shrink-0"></span>
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-xs font-extrabold text-white">BLEスマートはかり連携</span>
                                     <span id="ble-protocol-badge" class="hidden text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-300"></span>
-                                    <span id="ble-stability-badge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-dark-850 border border-dark-700 text-gray-400">待機中</span>
+                                    <span id="ble-stability-badge" class="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-dark-850 border border-dark-700 text-gray-400">待機中</span>
                                 </div>
                                 <div id="ble-device-name" class="text-[11px] font-bold text-gray-500 truncate mt-0.5">
                                     未接続（「はかり接続」でA&amp;D SH-3000AWP-BT・各種BLEはかりを自動認識）
@@ -284,15 +284,15 @@
                             </div>
                         </div>
 
-                        <!-- 正味重量（缶引き後）ライブ表示 -->
-                        <div class="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/35 rounded-xl px-3.5 py-1.5 ml-auto">
-                            <div class="text-right">
-                                <span class="text-[10px] font-bold text-emerald-300 block leading-none">正味重量（自動計算）</span>
-                                <span id="ble-tare-offset-note" class="text-[9px] text-emerald-400/80 block mt-0.5">風袋差し引き: 0kg</span>
+                        <!-- 正味重量（缶引き後）特大ライブ表示パネル -->
+                        <div id="ble-net-weight-box" class="flex items-center justify-between sm:justify-end gap-3 bg-dark-950 border-2 border-emerald-500/60 rounded-2xl px-4 py-2.5 shadow-[0_0_25px_-5px_rgba(16,185,129,0.3)] sm:ml-auto transition-all">
+                            <div class="text-left sm:text-right">
+                                <span id="ble-net-weight-label" class="text-xs font-black text-emerald-300 block leading-tight tracking-wide">正味重量（自動計算）</span>
+                                <span id="ble-tare-offset-note" class="text-[11px] font-bold text-emerald-400/90 block mt-0.5">風袋差し引き: 0kg</span>
                             </div>
-                            <div class="flex items-baseline gap-0.5 pl-1">
-                                <span id="ble-net-weight-display" class="text-xl font-black text-emerald-400 tracking-tight">--.-</span>
-                                <span class="text-xs font-extrabold text-emerald-400">kg</span>
+                            <div class="flex items-baseline gap-1 pl-2">
+                                <span id="ble-net-weight-display" class="text-4xl md:text-5xl font-black text-emerald-300 tracking-tight tabular-nums leading-none drop-shadow-[0_0_12px_rgba(52,211,153,0.45)]">--.-</span>
+                                <span class="text-base md:text-lg font-black text-emerald-400">kg</span>
                             </div>
                         </div>
                     </div>
@@ -318,8 +318,8 @@
                         </label>
                     </div>
 
-                    <!-- 3段目：双方向リモコン操作（ゼロ点リセット／風袋引き／手動データ要求）＋ 缶風袋選択 ＋ 総重量 -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-dark-800/80">
+                    <!-- 3段目：双方向リモコン操作（ゼロ点リセット／風袋引き／手動データ要求）＋ 缶風袋選択 ＋ 計測値（拡大・水色強調） -->
+                    <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1 border-t border-dark-800/80">
                         <!-- 双方向リモコンボタン群 -->
                         <div class="flex items-center gap-1.5 flex-wrap">
                             <button type="button" onclick="sendBleScaleCommand('ZERO')" title="はかり本体へゼロ点リセットコマンド(Z)を送信" class="bg-dark-850 hover:bg-dark-800 active:scale-95 border border-sky-500/40 text-sky-300 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 whitespace-nowrap">
@@ -360,14 +360,14 @@
                             </div>
                         </div>
 
-                        <!-- はかり生計測値（手入力テストにも対応） -->
+                        <!-- はかり生計測値（視認性の高い大きめ水色表示・手入力テスト対応） -->
                         <div class="flex items-center gap-2 ml-auto">
-                            <div class="flex items-baseline gap-1 bg-dark-950 border border-dark-700 rounded-xl px-3 py-1.5">
-                                <span class="text-[10px] font-bold text-gray-500 mr-1">計測値:</span>
-                                <input id="ble-live-weight-input" type="number" step="0.001" placeholder="--.-" oninput="onManualScaleInput(this.value)" class="w-16 bg-transparent text-right text-sm font-black text-white focus:outline-none">
-                                <span class="text-xs font-extrabold text-gray-400">kg</span>
+                            <div class="flex items-baseline gap-1.5 bg-sky-500/10 border border-sky-400/50 rounded-xl px-3.5 py-1.5">
+                                <span class="text-xs font-extrabold text-sky-300 mr-0.5">計測値:</span>
+                                <input id="ble-live-weight-input" type="number" step="0.001" placeholder="--.-" oninput="onManualScaleInput(this.value)" class="w-24 bg-transparent text-right text-xl md:text-2xl font-black text-sky-300 placeholder-sky-500/50 tabular-nums focus:outline-none">
+                                <span class="text-sm font-black text-sky-400">kg</span>
                             </div>
-                            <button type="button" onclick="applyBleWeightToNewForm()" title="缶の重さを引いた正味重量を新規登録欄へ入力" class="bg-dark-850 hover:bg-dark-800 border border-emerald-500/40 text-emerald-400 font-bold text-xs px-2.5 py-1.5 rounded-xl transition whitespace-nowrap">
+                            <button type="button" onclick="applyBleWeightToNewForm()" title="缶の重さを引いた正味重量を新規登録欄へ入力" class="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/60 text-emerald-300 font-extrabold text-xs px-3 py-2 rounded-xl transition whitespace-nowrap">
                                 新規欄へ反映
                             </button>
                         </div>
@@ -1676,19 +1676,53 @@
 
         function updateStabilityUI(state) {
             const badge = document.getElementById('ble-stability-badge');
+            const netBox = document.getElementById('ble-net-weight-box');
+            const netLabel = document.getElementById('ble-net-weight-label');
+            const netDisplay = document.getElementById('ble-net-weight-display');
             if (!badge) return;
+
             if (state === 'stable') {
                 bleIsStable = true;
                 badge.textContent = '安定確定';
-                badge.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300';
+                badge.className = 'text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-300';
+                if (netBox) {
+                    netBox.className = 'flex items-center justify-between sm:justify-end gap-3 bg-dark-950 border-2 border-emerald-400 rounded-2xl px-4 py-2.5 shadow-[0_0_30px_-4px_rgba(52,211,153,0.45)] sm:ml-auto transition-all';
+                }
+                if (netLabel) {
+                    netLabel.textContent = '正味重量（安定確定）';
+                    netLabel.className = 'text-xs font-black text-emerald-300 block leading-tight tracking-wide';
+                }
+                if (netDisplay) {
+                    netDisplay.className = 'text-4xl md:text-5xl font-black text-emerald-300 tracking-tight tabular-nums leading-none drop-shadow-[0_0_12px_rgba(52,211,153,0.5)]';
+                }
             } else if (state === 'measuring') {
                 bleIsStable = false;
                 badge.textContent = '計測中...';
-                badge.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 animate-pulse';
+                badge.className = 'text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/25 border border-amber-400 text-amber-300 animate-pulse';
+                if (netBox) {
+                    netBox.className = 'flex items-center justify-between sm:justify-end gap-3 bg-dark-950 border-2 border-amber-400 rounded-2xl px-4 py-2.5 shadow-[0_0_25px_-5px_rgba(251,191,36,0.35)] sm:ml-auto transition-all';
+                }
+                if (netLabel) {
+                    netLabel.textContent = '正味重量（計測中...）';
+                    netLabel.className = 'text-xs font-black text-amber-300 block leading-tight tracking-wide';
+                }
+                if (netDisplay) {
+                    netDisplay.className = 'text-4xl md:text-5xl font-black text-amber-300 tracking-tight tabular-nums leading-none drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]';
+                }
             } else {
                 bleIsStable = false;
                 badge.textContent = '待機中';
-                badge.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-dark-850 border border-dark-700 text-gray-400';
+                badge.className = 'text-[11px] font-black px-2.5 py-0.5 rounded-full bg-dark-850 border border-dark-700 text-gray-400';
+                if (netBox) {
+                    netBox.className = 'flex items-center justify-between sm:justify-end gap-3 bg-dark-950 border-2 border-emerald-500/50 rounded-2xl px-4 py-2.5 shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)] sm:ml-auto transition-all';
+                }
+                if (netLabel) {
+                    netLabel.textContent = '正味重量（自動計算）';
+                    netLabel.className = 'text-xs font-black text-emerald-300 block leading-tight tracking-wide';
+                }
+                if (netDisplay) {
+                    netDisplay.className = 'text-4xl md:text-5xl font-black text-emerald-300 tracking-tight tabular-nums leading-none';
+                }
             }
         }
 
@@ -1908,7 +1942,6 @@
             stopBlePolling();
             const encoder = new TextEncoder();
             const queryCmds = [encoder.encode('Q\r\n')];
-            // A&D SH-3000AWP-BT へ 350ms 間隔で即時計量値要求コマンド(Q)を自動送信
             blePollingTimer = setInterval(() => {
                 if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
                     writeRawCommandToBle(queryCmds, true);
@@ -1926,23 +1959,20 @@
             const clean = line.replace(/\0/g, '').trim();
             if (!clean) return null;
 
-            // A&D 標準フォーマット例:
-            // "ST,+00125.5 g" / "US,+00125.5 g" / "QT,+00125.5 g" / "ST,+01.255kg" / "OL,+99999.9 g"
             if (/^OL\b/i.test(clean)) {
-                return null; // オーバーロード(過負荷)は無視
+                return null;
             }
 
             let stableHint = null;
             if (/^(ST|QT)\b/i.test(clean)) stableHint = true;
             if (/^US\b/i.test(clean)) stableHint = false;
 
-            // ヘッダー(ST,/US,/QT,等)を除いた数値＋単位の抽出
             const match = clean.match(/(?:^(?:ST|US|QT|NT|GS)\s*,?\s*)?([+-]?\s*\d+(?:\.\d+)?)\s*(kg|g|lb|oz)?/i);
             if (!match) return null;
 
             let val = parseFloat(match[1].replace(/\s+/g, ''));
             if (isNaN(val)) return null;
-            if (val < 0) val = 0; // 風袋引き後のマイナス表示は0kg扱い
+            if (val < 0) val = 0;
 
             const unit = (match[2] || '').toLowerCase();
             if (unit === 'g') {
@@ -1952,7 +1982,6 @@
             } else if (unit === 'oz') {
                 val = val * 0.0283495;
             } else if (!unit) {
-                // SH-3000AWP-BT（ひょう量3000g）で単位文字が省略された場合の自動補正
                 if (bleIsAndScale || Math.abs(val) > 30) {
                     val = val / 1000;
                 }
@@ -2009,7 +2038,6 @@
                         bleAsciiBuffer = bleAsciiBuffer.slice(-128);
                     }
 
-                    // 改行(\r または \n)が含まれていれば確定行として切り出して解析
                     if (/[\r\n]/.test(bleAsciiBuffer)) {
                         const lines = bleAsciiBuffer.split(/[\r\n]+/);
                         bleAsciiBuffer = lines.pop() || '';
@@ -2018,7 +2046,6 @@
                             if (parsedLine) return parsedLine;
                         }
                     } else {
-                        // 改行なしで単発パケットが完結して届く機種向けフォールバック
                         const directParsed = parseAndAsciiLine(bleAsciiBuffer);
                         if (directParsed && /(?:g|kg|lb|oz)\s*$/i.test(bleAsciiBuffer.trim())) {
                             bleAsciiBuffer = '';
@@ -2083,7 +2110,7 @@
                         ? `接続中: ${devName}（体重データのみ自動抽出中・5kg以上を載せてください）`
                         : `接続中: ${devName}（物を載せると自動で数値判定＆格納します）`);
                 document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-emerald-400 truncate mt-0.5';
-                document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0';
+                document.getElementById('ble-live-dot').className = 'w-3 h-3 rounded-full bg-emerald-400 animate-pulse flex-shrink-0';
 
                 device.addEventListener('gattserverdisconnected', () => {
                     stopBlePolling();
@@ -2093,7 +2120,7 @@
                     document.getElementById('ble-text').textContent = 'はかり接続';
                     document.getElementById('ble-device-name').textContent = '切断されました（「はかり接続」で再接続）';
                     document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-gray-500 truncate mt-0.5';
-                    document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-gray-600 flex-shrink-0';
+                    document.getElementById('ble-live-dot').className = 'w-3 h-3 rounded-full bg-gray-600 flex-shrink-0';
                     showToast('BLEデジタルはかりが切断されました');
                 });
 
@@ -2128,7 +2155,6 @@
                     } catch (e) {}
                 }
 
-                // A&D SH-3000AWP-BT または書き込み可能UARTがある場合は自動ポーリング開始
                 if (bleIsAndScale || bleWritableChars.length > 0) {
                     startAndScalePolling();
                 }
@@ -2327,8 +2353,8 @@
                                 <div class="flex items-center gap-1 bg-dark-950 border border-dark-800 rounded-lg p-1">
                                     <button type="button" onclick="adjustWeight('${m.id}', -0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">-0.5</button>
                                     <div class="flex items-baseline gap-0.5 px-1">
-                                        <input type="number" step="0.001" value="${m.weight}" onchange="updateMaterialWeight('${m.id}', this.value)" class="w-16 bg-dark-900 border border-dark-700 rounded px-1 py-0.5 text-center text-sm font-black ${isLowStock ? 'text-red-400' : 'text-gold-400'} focus:outline-none focus:border-gold-500">
-                                        <span class="text-[10px] font-extrabold text-gray-500">kg</span>
+                                        <input type="number" step="0.001" value="${m.weight}" onchange="updateMaterialWeight('${m.id}', this.value)" class="w-20 bg-dark-900 border border-dark-700 rounded px-1 py-0.5 text-center text-base font-black ${isLowStock ? 'text-red-400' : 'text-gold-300'} tabular-nums focus:outline-none focus:border-gold-500">
+                                        <span class="text-[11px] font-extrabold text-gray-400">kg</span>
                                     </div>
                                     <button type="button" onclick="adjustWeight('${m.id}', 0.5)" class="w-7 h-7 rounded bg-dark-800 hover:bg-dark-700 text-gray-200 font-black text-[11px] transition">+0.5</button>
                                 </div>
