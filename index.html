@@ -266,7 +266,7 @@
                     </div>
                 </div>
 
-                <!-- 高機能BLEデジタルはかり リアルタイム自動反映＆双方向リモコンパネル -->
+                <!-- 高機能BLEデジタルはかり（Eufy C1 / 標準BLEスケール対応） -->
                 <div id="ble-live-bar" class="bg-dark-900 border border-dark-700/90 rounded-2xl p-4 space-y-3.5 shadow-xl">
                     <!-- 1段目：接続ステータス＆安定判定バッジ＆正味重量ライブ表示 -->
                     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -275,10 +275,11 @@
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-xs font-extrabold text-white">BLEスマートはかり連携</span>
+                                    <span id="ble-protocol-badge" class="hidden text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-300"></span>
                                     <span id="ble-stability-badge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-dark-850 border border-dark-700 text-gray-400">待機中</span>
                                 </div>
                                 <div id="ble-device-name" class="text-[11px] font-bold text-gray-500 truncate mt-0.5">
-                                    未接続（「はかり接続」で自動認識・カーソル位置不要で自動格納）
+                                    未接続（「はかり接続」でEufy C1・BLEはかりを自動認識）
                                 </div>
                             </div>
                         </div>
@@ -321,14 +322,14 @@
                     <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-dark-800/80">
                         <!-- 双方向リモコンボタン群 -->
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            <button type="button" onclick="sendBleScaleCommand('ZERO')" title="はかり本体のゼロ点を0.00kgにリセット" class="bg-dark-850 hover:bg-dark-800 active:scale-95 border border-sky-500/40 text-sky-300 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 whitespace-nowrap">
+                            <button type="button" onclick="sendBleScaleCommand('ZERO')" title="ゼロ点を0.00kgにリセット" class="bg-dark-850 hover:bg-dark-800 active:scale-95 border border-sky-500/40 text-sky-300 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 whitespace-nowrap">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                                 <span>ゼロ点リセット</span>
                             </button>
 
-                            <button type="button" onclick="sendBleScaleCommand('TARE')" title="現在の容器の重さを0kg（風袋引き）にする" class="bg-dark-850 hover:bg-dark-800 active:scale-95 border border-amber-500/40 text-amber-300 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 whitespace-nowrap">
+                            <button type="button" onclick="sendBleScaleCommand('TARE')" title="現在の重さ（自分の体重や容器）を0kg基準にする" class="bg-dark-850 hover:bg-dark-800 active:scale-95 border border-amber-500/40 text-amber-300 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 whitespace-nowrap">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4" />
                                 </svg>
@@ -615,12 +616,13 @@
         let activeModalContext = { projectId: null, photoIdx: null };
 
         // ==========================================
-        // 高機能BLEデジタルはかり 状態管理
+        // 高機能BLEデジタルはかり（Eufy C1 / 標準BLEスケール対応）
         // ==========================================
         let bleDevice = null;
         let bleWritableChars = [];
+        let bleIsEufyDevice = false;
         let bleRawWeightKg = null;        // はかりから受信した生重量(kg)
-        let bleSoftZeroOffsetKg = 0;      // ソフトゼロ（本体非対応時の0リセット補正値）
+        let bleSoftZeroOffsetKg = 0;      // ソフトゼロ（0リセット/風袋ゼロ補正値）
         let bleLatestWeightKg = null;     // ソフトゼロ補正後の計測総重量(kg)
         let bleIsStable = false;          // 数値安定フラグ
         let bleLastReadingForStability = null;
@@ -894,7 +896,6 @@
             }
         }
 
-        // 【事前発行ID・PIN認証専用ロジック】未登録IDの自動作成を禁止
         async function startSyncListener(isManualTrigger = false) {
             stopAllListeners();
             isCloudAuthorized = false;
@@ -921,7 +922,6 @@
             try {
                 const snap = await groupDocRef.get();
 
-                // 1) 事前登録されていないIDは一切拒否（タダ乗り防止）
                 if (!snap.exists) {
                     isCloudAuthorized = false;
                     updateSyncStatus('未登録の企業IDです', 'error');
@@ -933,7 +933,6 @@
 
                 const data = snap.data() || {};
 
-                // 2) 利用停止フラグ（active === false）チェック
                 if (data.active === false) {
                     isCloudAuthorized = false;
                     updateSyncStatus('この企業IDは現在停止中です', 'error');
@@ -941,7 +940,6 @@
                     return;
                 }
 
-                // 3) 4桁PINの一致チェック
                 if (!data.pin || String(data.pin) !== currentPin) {
                     isCloudAuthorized = false;
                     updateSyncStatus('暗証番号(PIN)が一致しません', 'error');
@@ -949,11 +947,9 @@
                     return;
                 }
 
-                // 認証成功
                 isCloudAuthorized = true;
                 loadLocalData();
 
-                // 初回ログイン時にまだ案件が0件ならサンプル案件を1件だけ作成
                 const initialProjSnap = await projectsColRef.limit(1).get();
                 if (initialProjSnap.empty && (!Array.isArray(data.materials) || data.materials.length === 0)) {
                     const samples = createInitialSampleProjects();
@@ -1434,7 +1430,6 @@
                     saveLocalCache();
                     renderAll();
 
-                    // クラウド認証中であればFirestore側へも復元データを同期
                     if (isValidGroup(currentGroup) && isValidPin(currentPin) && isCloudAuthorized && db) {
                         showToast('クラウドへ復元データを同期しています...');
                         const groupDocRef = db.collection('paint_groups').doc(currentGroup);
@@ -1583,7 +1578,7 @@
         }
 
         // ==========================================
-        // 汎用BLEデジタルはかり リアルタイム自動反映・安定判定・双方向リモコン
+        // Eufy Smart Scale C1 & 汎用BLEデジタルはかり デコーダー
         // ==========================================
         function updateBleAutoTargetOptions() {
             const sel = document.getElementById('ble-auto-target');
@@ -1617,7 +1612,7 @@
             } else {
                 sel.value = targetVal;
                 const m = appState.materials.find(x => x.id === id);
-                showToast(`「${m ? m.name : '選択材料'}」を自動追従ターゲットに設定しました（載せるだけで自動反映）`);
+                showToast(`「${m ? m.name : '選択材料'}」を自動追従ターゲットに設定しました`);
             }
             bleLastCommittedKey = '';
             renderAll();
@@ -1654,9 +1649,15 @@
             const noteEl = document.getElementById('ble-tare-offset-note');
             const { tare, label } = getSelectedBleTareInfo();
             if (noteEl) {
-                noteEl.textContent = tare > 0
-                    ? `風袋差し引き: -${tare}kg (${label})`
-                    : (bleSoftZeroOffsetKg > 0 ? `ゼロ補正済: -${bleSoftZeroOffsetKg}kg` : '風袋差し引き: 0kg');
+                if (tare > 0 && bleSoftZeroOffsetKg > 0) {
+                    noteEl.textContent = `風袋: -${tare}kg (${label}) + ゼロ補正: -${bleSoftZeroOffsetKg}kg`;
+                } else if (tare > 0) {
+                    noteEl.textContent = `風袋差し引き: -${tare}kg (${label})`;
+                } else if (bleSoftZeroOffsetKg > 0) {
+                    noteEl.textContent = `風袋ゼロ基準済: -${bleSoftZeroOffsetKg}kg`;
+                } else {
+                    noteEl.textContent = '風袋差し引き: 0kg';
+                }
             }
             if (!netEl) return;
             const net = getBleNetWeightKg();
@@ -1681,7 +1682,6 @@
             }
         }
 
-        // カーソル位置を気にせず指定枠へ自動格納するルーター
         function triggerAutoRouteIfReady(isStableNow) {
             const netWeight = getBleNetWeightKg();
             if (netWeight === null) return;
@@ -1740,14 +1740,13 @@
             }
             updateBleNetWeightPreview();
 
-            // 安定判定ロジック（ハードウェアフラグ優先 ＋ 0.75秒間の静止判定）
             clearTimeout(bleStabilityTimer);
             const diff = bleLastReadingForStability === null
                 ? 999
                 : Math.abs(bleLatestWeightKg - bleLastReadingForStability);
             bleLastReadingForStability = bleLatestWeightKg;
 
-            if (hardwareStableHint === true && diff <= 0.02) {
+            if (hardwareStableHint === true && diff <= 0.05) {
                 updateStabilityUI('stable');
                 triggerAutoRouteIfReady(true);
             } else {
@@ -1756,7 +1755,7 @@
                 bleStabilityTimer = setTimeout(() => {
                     updateStabilityUI('stable');
                     triggerAutoRouteIfReady(true);
-                }, 750);
+                }, 700);
             }
         }
 
@@ -1822,16 +1821,13 @@
             }
         }
 
-        // 双方向通信：Web画面からはかり本体へ「ZERO」「TARE」コマンドを送信
         async function sendBleScaleCommand(cmdType) {
             const isZero = cmdType === 'ZERO';
             const label = isZero ? 'ゼロ点リセット' : '風袋引き';
 
-            // 1) 接続中のBLEはかりに書き込み可能Characteristicがあれば物理コマンド送信を試行
             let hardwareSent = false;
-            if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected && bleWritableChars.length > 0) {
+            if (!bleIsEufyDevice && bleDevice && bleDevice.gatt && bleDevice.gatt.connected && bleWritableChars.length > 0) {
                 const encoder = new TextEncoder();
-                // 汎用BLEはかり（UART/FFE1/FFF1/Weight Scale Control Point）向け標準ペイロード候補
                 const payloads = isZero
                     ? [encoder.encode('Z\r\n'), encoder.encode('ZERO\r\n'), new Uint8Array([0x02, 0x5A, 0x03])]
                     : [encoder.encode('T\r\n'), encoder.encode('TARE\r\n'), new Uint8Array([0x02, 0x54, 0x03])];
@@ -1854,7 +1850,6 @@
                 }
             }
 
-            // 2) ソフト風袋ゼロ補正も併用（本体コマンド非対応機種でも即座に0.00kg基準化）
             if (bleRawWeightKg !== null) {
                 if (isZero) {
                     bleSoftZeroOffsetKg = 0;
@@ -1876,14 +1871,73 @@
             }
         }
 
-        // 汎用BLEはかりデータパーサー（標準Bluetooth Weight Scale 0x181D + ASCII/UART文字列 + ST/US安定フラグ）
-        function parseBleScaleDataView(dataView) {
+        // 【Eufy Smart Scale C1 (T9146) 専用デコーダー ＋ 汎用BLEはかりパーサー】
+        function parseBleScaleDataView(dataView, charUuid = '') {
             if (!dataView || dataView.byteLength < 2) return null;
+            const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+
             try {
-                // パターンA: テキスト/ASCIIプロトコル（例: "ST,GS,+  12.45kg" / "US,NT, 450g" / "12.35 kg"）
+                // ==========================================================
+                // 1) Eufy Smart Scale C1 (T9146) 独自パケット判定
+                //    Eufy C1 は先頭バイト 0xCF から始まるフレームを送信する。
+                //    ※体脂肪・インピーダンス・時刻フレームを除外し、重量フレームのみ抽出
+                // ==========================================================
+                if (bleIsEufyDevice || bytes[0] === 0xCF) {
+                    // フレーム長が短い制御/ACKパケットや、先頭が 0xCF 以外のノイズは完全無視
+                    if (bytes[0] !== 0xCF || bytes.length < 7) {
+                        return null;
+                    }
+
+                    // パケット種別判定：
+                    // Eufy C1 のリアルタイム/確定体重パケットは bytes[1] === 0x01 または bytes[2] === 0x00/0x01
+                    // 体脂肪率・電気抵抗値・時刻同期フレーム（bytes[1] が 0x02, 0x03, 0x10 以降など）を除外
+                    const packetType = bytes[1];
+                    if (packetType !== 0x01 && packetType !== 0x00) {
+                        return null;
+                    }
+
+                    // Eufy C1 の重量バイト位置（Little Endian 16bit / 100 = kg）
+                    // 実機ファームウェア差異により [bytes[3], bytes[4]] または [bytes[4], bytes[5]] に格納される
+                    let raw16 = (bytes[4] << 8) | bytes[3];
+                    let kg = raw16 / 100;
+
+                    // 妥当レンジ外（Eufy C1の計量範囲 5kg〜180kg 外）なら [bytes[5], bytes[4]] を検証
+                    if (kg < 4.5 || kg > 180) {
+                        raw16 = (bytes[5] << 8) | bytes[4];
+                        kg = raw16 / 100;
+                    }
+
+                    // Eufy C1 の仕様範囲（5kg〜180kg）外の数値は体組成・インピーダンス値のため破棄
+                    if (kg < 4.5 || kg > 180) {
+                        return null;
+                    }
+
+                    // 安定フラグ判定（bytes[2] または末尾ステータスが確定状態を示す場合）
+                    const isLocked = (bytes[2] === 0x00 || bytes[2] === 0x01) && (bytes.length >= 9 ? bytes[8] === 0x00 || bytes[8] === 0x01 : false);
+                    return { kg: formatWeightKg(kg), stable: isLocked ? true : null };
+                }
+
+                // ==========================================================
+                // 2) Bluetooth SIG 標準 Weight Measurement (UUID 0x2A9D)
+                // ==========================================================
+                if (charUuid.includes('2a9d') && dataView.byteLength >= 3) {
+                    const flags = dataView.getUint8(0);
+                    const isImperial = (flags & 0x01) !== 0;
+                    const rawVal = dataView.getUint16(1, true);
+                    if (rawVal >= 0 && rawVal < 60000) {
+                        const kg = isImperial ? (rawVal * 0.01 * 0.453592) : (rawVal * 0.005);
+                        if (kg >= 0 && kg <= 250) {
+                            return { kg, stable: null };
+                        }
+                    }
+                }
+
+                // ==========================================================
+                // 3) 汎用UART / ASCII テキストプロトコル（業務用BLEはかり等）
+                // ==========================================================
                 const decoder = new TextDecoder('utf-8');
-                const str = decoder.decode(dataView.buffer).replace(/\0/g, '').trim();
-                if (/[0-9]/.test(str)) {
+                const str = decoder.decode(bytes).replace(/\0/g, '').trim();
+                if (/^[A-Za-z0-9\s.,:+-]+$/.test(str) && /[0-9]/.test(str)) {
                     let stableHint = null;
                     if (/\bST\b|STABLE/i.test(str)) stableHint = true;
                     if (/\bUS\b|UNSTABLE/i.test(str)) stableHint = false;
@@ -1904,19 +1958,6 @@
                         }
                     }
                 }
-
-                // パターンB: Bluetooth SIG 標準 Weight Measurement (UUID 0x2A9D)
-                if (dataView.byteLength >= 3) {
-                    const flags = dataView.getUint8(0);
-                    const isImperial = (flags & 0x01) !== 0;
-                    const rawVal = dataView.getUint16(1, true);
-                    if (rawVal >= 0 && rawVal < 60000) {
-                        const kg = isImperial ? (rawVal * 0.01 * 0.453592) : (rawVal * 0.005);
-                        if (kg >= 0 && kg <= 250) {
-                            return { kg, stable: null };
-                        }
-                    }
-                }
             } catch (err) {
                 console.warn('BLE parse warning:', err);
             }
@@ -1932,7 +1973,9 @@
                     acceptAllDevices: true,
                     optionalServices: [
                         0x181D,
+                        0x181B,
                         '0000181d-0000-1000-8000-00805f9b34fb',
+                        '0000181b-0000-1000-8000-00805f9b34fb',
                         '0000ffe0-0000-1000-8000-00805f9b34fb',
                         '0000fff0-0000-1000-8000-00805f9b34fb',
                         '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
@@ -1945,8 +1988,22 @@
                 bleLastCommittedKey = '';
 
                 const devName = device.name || 'BLEデジタルはかり';
+                bleIsEufyDevice = /eufy|smart\s*scale|t914/i.test(devName);
+
+                const protoBadge = document.getElementById('ble-protocol-badge');
+                if (protoBadge) {
+                    if (bleIsEufyDevice) {
+                        protoBadge.textContent = 'Eufy C1 専用モード（5kg〜対応）';
+                        protoBadge.classList.remove('hidden');
+                    } else {
+                        protoBadge.classList.add('hidden');
+                    }
+                }
+
                 document.getElementById('ble-text').textContent = `${devName} 接続済`;
-                document.getElementById('ble-device-name').textContent = `接続中: ${devName}（物を載せると自動で数値判定＆格納します）`;
+                document.getElementById('ble-device-name').textContent = bleIsEufyDevice
+                    ? `接続中: ${devName}（体重データのみ自動抽出中・5kg以上を載せてください）`
+                    : `接続中: ${devName}（物を載せると自動で数値判定＆格納します）`;
                 document.getElementById('ble-device-name').className = 'text-[11px] font-bold text-emerald-400 truncate mt-0.5';
                 document.getElementById('ble-live-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0';
 
@@ -1968,14 +2025,19 @@
                     try {
                         const chars = await service.getCharacteristics();
                         for (const ch of chars) {
+                            const cUuid = (ch.uuid || '').toLowerCase();
                             if (ch.properties.write || ch.properties.writeWithoutResponse) {
                                 bleWritableChars.push(ch);
                             }
                             if (ch.properties.notify || ch.properties.indicate) {
+                                // Eufy C1 の場合は体組成・ログ系キャラクタリスティックを除外し、FFE4/FFF4/2A9D のみ購読
+                                if (bleIsEufyDevice && !cUuid.includes('ffe4') && !cUuid.includes('fff4') && !cUuid.includes('2a9d')) {
+                                    continue;
+                                }
                                 try {
                                     await ch.startNotifications();
                                     ch.addEventListener('characteristicvaluechanged', (ev) => {
-                                        const parsed = parseBleScaleDataView(ev.target.value);
+                                        const parsed = parseBleScaleDataView(ev.target.value, cUuid);
                                         if (parsed && parsed.kg !== null) {
                                             setBleLiveWeight(parsed.kg, parsed.stable);
                                         }
@@ -1987,9 +2049,9 @@
                     } catch (e) {}
                 }
 
-                showToast(subscribedCount > 0
-                    ? `${devName} に接続完了（自動受信・双方向操作準備OK）`
-                    : `${devName} に接続しました`);
+                showToast(bleIsEufyDevice
+                    ? `${devName} にEufy専用モードで接続しました（5kg以上を載せてください）`
+                    : `${devName} に接続完了（自動受信・双方向操作準備OK）`);
             } catch (e) {
                 showToast('Bluetooth接続をキャンセルしました');
             }
