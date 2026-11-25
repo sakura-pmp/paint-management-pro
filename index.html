@@ -2064,19 +2064,17 @@
                 return showToast('このブラウザはWeb Bluetooth非対応です（Chrome / Edge / Bluefy推奨）');
             }
             try {
+                // Bluefy (iOS) 互換性のため、標準の128bit UUIDのみを指定
                 const device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: [
-                        0x181D,
-                        0x181B,
                         '0000181d-0000-1000-8000-00805f9b34fb',
                         '0000181b-0000-1000-8000-00805f9b34fb',
                         '0000ffe0-0000-1000-8000-00805f9b34fb',
                         '0000fff0-0000-1000-8000-00805f9b34fb',
                         '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
                         '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-                        '0000ff00-0000-1000-8000-00805f9b34fb',
-                        '00001101-0000-1000-8000-00805f9b34fb'
+                        '0000ff00-0000-1000-8000-00805f9b34fb'
                     ]
                 });
                 bleDevice = device;
@@ -2126,7 +2124,6 @@
 
                 const server = await device.gatt.connect();
                 const services = await server.getPrimaryServices();
-                let subscribedCount = 0;
 
                 for (const service of services) {
                     try {
@@ -2148,7 +2145,6 @@
                                             setBleLiveWeight(parsed.kg, parsed.stable);
                                         }
                                     });
-                                    subscribedCount++;
                                 } catch (subErr) {}
                             }
                         }
@@ -2163,7 +2159,13 @@
                     ? `${devName} にA&D専用モードで接続しました（自動重量取得を開始）`
                     : `${devName} に接続完了（自動受信・双方向操作準備OK）`);
             } catch (e) {
-                showToast('Bluetooth接続をキャンセルしました');
+                console.warn('BLE connect error:', e);
+                const errMsg = String(e && (e.message || e.name) || '');
+                if (/cancel|abort/i.test(errMsg)) {
+                    showToast('Bluetooth接続をキャンセルしました');
+                } else {
+                    showToast(`Bluetoothエラー: ${errMsg || 'iOS設定＞Bluefy＞Bluetooth許可を確認してください'}`);
+                }
             }
         }
 
